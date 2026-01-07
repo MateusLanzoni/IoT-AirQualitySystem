@@ -1,0 +1,142 @@
+services:
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: airguard-mqtt
+    ports:
+      - "1883:1883"   # MQTT
+      - "9001:9001"   # MQTT over WebSockets (optional)
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - airguard_net
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: airguard-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: airguard
+      MONGO_INITDB_ROOT_PASSWORD: airguardpass
+      MONGO_INITDB_DATABASE: airguard
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - airguard_net
+    restart: unless-stopped
+
+  mongo-express:
+    image: mongo-express:1
+    container_name: airguard-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: airguard
+      ME_CONFIG_MONGODB_ADMINPASSWORD: airguardpass
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_BASICAUTH: "false"
+    depends_on:
+      - mongodb
+    networks:
+      - airguard_net
+    restart: unless-stopped
+
+  # -------------------------
+  # Microservices (enable when ready)
+  # -------------------------
+
+  room-catalog:
+    build:
+      context: ./services/room-catalog
+    container_name: airguard-room-catalog
+    environment:
+      MONGO_URI: mongodb://airguard:airguardpass@mongodb:27017/airguard?authSource=admin
+      PORT: "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+    networks:
+      - airguard_net
+    restart: unless-stopped
+    profiles: ["app"]
+
+  data-analysis:
+    build:
+      context: ./services/data-analysis
+    container_name: airguard-data-analysis
+    environment:
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: "1883"
+      MQTT_TOPIC_IN: "airguard/+/telemetry"
+      MQTT_TOPIC_OUT: "airguard/{roomId}/features"
+    depends_on:
+      - mqtt-broker
+    networks:
+      - airguard_net
+    restart: unless-stopped
+    profiles: ["app"]
+
+  prediction:
+    build:
+      context: ./services/prediction
+    container_name: airguard-prediction
+    environment:
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: "1883"
+      MQTT_TOPIC_IN: "airguard/+/features"
+      MQTT_TOPIC_OUT: "airguard/{roomId}/recommendations"
+    depends_on:
+      - mqtt-broker
+    networks:
+      - airguard_net
+    restart: unless-stopped
+    profiles: ["app"]
+
+  actuation-control:
+    build:
+      context: ./services/actuation-control
+    container_name: airguard-actuation-control
+    environment:
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: "1883"
+      MQTT_TOPIC_IN: "airguard/+/recommendations"
+      MQTT_TOPIC_OUT: "airguard/{roomId}/actuation/cmd"
+      ROOM_CATALOG_URL: http://room-catalog:8000
+    depends_on:
+      - mqtt-broker
+      - room-catalog
+    networks:
+      - airguard_net
+    restart: unless-stopped
+    profiles: ["app"]
+
+  # Optional: device connector simulator (publish telemetry)
+  device-connector-sim:
+    build:
+      context: ./services/device-connector-sim
+    container_name: airguard-device-sim
+    environment:
+      MQTT_HOST: mqtt-broker
+      MQTT_PORT: "1883"
+      ROOM_ID: room-101
+      DEVICE_ID: sim-01
+      PUBLISH_EVERY_SEC: "2"
+      MQTT_TOPIC_OUT: "airguard/room-101/telemetry"
+    depends_on:
+      - mqtt-broker
+    networks:
+      - airguard_net
+    restart: unless-stopped
+    profiles: ["sim"]
+
+networks:
+  airguard_net:
+
+volumes:
+  mongo_data:
+  mosquitto_data:
+  mosquitto_log:
