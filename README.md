@@ -1,4 +1,4 @@
 Mateus: Dashboarad, backend, telegram
-Ming:
-Syed:
-Roulin:
+Ming: thingspeak + RPI
+Syed: prediction
+Roulin: decision + catalog
