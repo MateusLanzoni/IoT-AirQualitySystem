@@ -1,0 +1,66 @@
+Sensor Catalog & Entity Specification
+  
+1. Catalog Configuration (YAML)
+The system initializes devices based on a central catalog. For simulation purposes, base_val and noise are utilized to generate synthetic telemetry using Gaussian distribution.
+
+Schema Requirements
+
+Key,Type,Description
+key,string,Unique identifier for the device instance.
+name,string,Human-readable display name.
+device_class,string,Functional category (must match SensorDeviceClass).
+unit,string,"Physical unit of measurement (e.g., °C, %)."
+base_val,float,Baseline value for simulation.
+noise,float,Standard deviation for Gaussian noise generation.
+  
+Configuration Example
+
+YAML
+sensors:
+  - key: "temp_01"
+    name: "Temperature"
+    device_class: "temperature"
+    unit: "°C"
+    base_val: 26.0
+    noise: 0.3
+      
+2. Implementation Logic
+Device Class Enumeration
+
+Strictly defines the supported physical categories to ensure data consistency.
+
+Sensors:
+
+class SensorDeviceClass(StrEnum):
+    TEMPERATURE = "temperature"
+    HUMIDITY = "humidity"
+    AQI = "aqi"
+    PM25 = "pm25"
+
+Actuators:
+
+class ActuatorDeviceClass(StrEnum):
+    SWITCH = "switch"   # Fans
+    CLIMATE = "climate" # AC units
+
+      
+Metadata Container
+
+A decoupled dataclass that separates static configuration from operational runtime logic.
+      
+Sensors:
+
+@dataclass
+class SensorEntityDescription:
+    key: str
+    device_class: SensorDeviceClass | None = None
+    native_unit_of_measurement: str | None = None
+    name: str | None = None
+
+Actuators:
+
+@dataclass
+class ActuatorEntityDescription:
+    key: str
+    name: str
+    device_class: ActuatorDeviceClass
