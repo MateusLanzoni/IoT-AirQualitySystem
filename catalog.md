@@ -53,7 +53,7 @@ Devices have these two types with different calsses:
   "name": "temp_1",
   "device_class": "temperature",
   "room_id": "room1",
-  "native_unit_of_measurement": "℃"
+  "native_unit_of_measurement": "℃",
   "status": "online",
   "last_value": 26.5,
   "unit": "°C",
@@ -120,18 +120,12 @@ GET /devices
 
 ```
 
-Behavior:
-
-If exists → update
-If not → create
-
 ---
 
 ## 5.2 Update Device
 ```text
 PUT /devices/{device_id}
 ```
-5.2.1  Sensor Model
 
 ```json
 {
@@ -139,21 +133,11 @@ PUT /devices/{device_id}
   "name": "temp_1",
   "device_class": "temperature",
   "room_id": "room1",
-  "native_unit_of_measurement": "℃"
-  "created": 1710000000,
-  "modified": 1710000000,
+  "category": "sensor",
+  "unit": "℃"
 }
 ```
-5.2.2  Actuator Model
-```json
-{
-  "key": "ac-1",
-  "name": "ac-1",
-  "room_id": "room1",
-  "created": 1710000000,
-  "modified": 1710000000,
-}
-```
+
 
 ---
 
