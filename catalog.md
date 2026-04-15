@@ -38,7 +38,7 @@ data/
 
 ## 4. Device Modeling (CRITICAL)
 
-Devices MUST be categorized:
+Devices have these two types with different calsses:
 
 - sensor
 - actuator
@@ -49,11 +49,11 @@ Devices MUST be categorized:
 
 ```json
 {
-  "device_id": "temp_1",
-  "device_name": "temp_1",
-  "category": "sensor",
-  "type": "temperature",
+  "key": "temp_1",
+  "name": "temp_1",
+  "device_class": "temperature",
   "room_id": "room1",
+  "native_unit_of_measurement": "℃"
   "status": "online",
   "last_value": 26.5,
   "last_seen": 1710000000,
@@ -113,10 +113,27 @@ If not → create
 ```text
 PUT /devices/{device_id}
 ```
+5.2.1  Sensor Model
+
 ```json
 {
-  "room_id": "room2",
-  "metadata": {}
+  "key": "temp_1",
+  "name": "temp_1",
+  "device_class": "temperature",
+  "room_id": "room1",
+  "native_unit_of_measurement": "℃"
+  "created": 1710000000,
+  "modified": 1710000000,
+}
+```
+5.2.2  Actuator Model
+```json
+{
+  "key": "ac-1",
+  "name": "ac-1",
+  "room_id": "room1",
+  "created": 1710000000,
+  "modified": 1710000000,
 }
 ```
 
@@ -249,7 +266,7 @@ DELETE /conflicts/{id}
 
 POST /services/register
 PUT /services/{service_id}/heartbeat
-GET /services?type=xxx
+
 
 ## Auto Offline
 
