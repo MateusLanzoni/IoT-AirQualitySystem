@@ -36,7 +36,7 @@ data/
 
 ---
 
-## 4. Device Modeling (CRITICAL)
+## 4. Device Modeling 
 
 Devices MUST be categorized:
 
@@ -45,7 +45,7 @@ Devices MUST be categorized:
 
 ---
 
-## 4.1 Sensor Model
+## 4.1 Sensor Model(device.json)
 
 ```json
 {
@@ -56,7 +56,10 @@ Devices MUST be categorized:
   "room_id": "room1",
   "status": "online",
   "last_value": 26.5,
+  "unit": "°C",
   "last_seen": 1710000000,
+  "created": 1710000000,
+  "modified": 1710000000,
   "metadata": {}
 }
 ```
@@ -73,6 +76,8 @@ Devices MUST be categorized:
   "actual_state": "ON",
   "status": "online",
   "last_seen": 1710000000,
+  "created": 1710000000,
+  "modified": 1710000000,
   "metadata": {}
 }
 ```
@@ -81,25 +86,38 @@ Devices MUST be categorized:
 
 ## Devices MUST support:
 
-- Registration (auto / idempotent)
-- Update (manual)
+- get device infor from the static docs
+- Update (manual, temporary)
 - Heartbeat
 - Auto-offline detection
 - Deregistration
 
-## 5.1 Register Device
+## 5.1 get Device
 ```text
-POST /devices/register
+GET /devices
 ```
 
 ```json
-{
-  "device_id": "ac_1",
-  "device_name": "ac_1",
-  "category": "actuator",
-  "type": "AC",
-  "room_id": "room1"
-}
+"devices":[
+  {
+    "key": "ac_1",
+    "name": "ac_1",
+    "device_class": "AC", // AC, FANS, WINDOWS
+    "room_id": "room1",
+    "category": "actuator",  //Actuator, sensor
+    "unit": ""
+  },
+  {
+    "key": "temp_1",
+    "name": "temp_1",
+    "category": "sensor",
+    "type": "temperature",
+    "room_id": "room1",
+    "unit": "°C",
+  }
+
+]
+
 ```
 
 Behavior:
