@@ -111,7 +111,7 @@ GET /devices
     "key": "temp_1",
     "name": "temp_1",
     "category": "sensor",
-    "type": "temperature",
+    "device_class": "temperature",
     "room_id": "room1",
     "unit": "°C",
   }
