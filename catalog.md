@@ -198,25 +198,31 @@ Runs every N seconds (e.g., 10 seconds, configurable).
   - In-Memory Update: The retrieved state is immediately updated in a local indexed map (cache).
   - Persistence: Based on the defined write strategy, the updated state is asynchronously persisted to devices.json.
 
-Pulled Data Content:
-```text
-PUT /devices/{device_id}/heartbeat
-```
-sensor:
-```json
-{
-  "key": "temp_1",
-  "status": "online",
-  "value": 27.5
-}
-```
-Actuator:
-```json
-{
-  "key": "AC_1",
-  "state": "ON"
+Pulled Data from [ThingSpeak](https://api.thingspeak.com/channels/{channel_id}/feeds.json):
 
+```json
+{
+  "channel": {
+    "id": 3319669,
+    "name": "IAQ",
+    "description": "Temperature & Humidity Sensor\r\nMeasuring indoor temperature and humidity\r\nAir Quality Sensor（CO₂, PM2.5)\r\nMeasuring indoor air quality\r\n",
+    "latitude": "4.7",
+    "longitude": "-74.0",
+    "field1": "room_id",
+    "field2": "Temperature",
+    "field3": "Humidity",
+    "field4": "CO2",
+    "field5": "PM25",
+    "field6": "AC_Status",
+    "field7": "Fan_Status",
+    "created_at": "2026-03-30T20:27:47Z",
+    "updated_at": "2026-04-16T23:50:30Z",
+    "elevation": "239(Turin)",
+    "last_entry_id": null
+  },
+  "feeds": []
 }
+
 ```
 
 Behavior:

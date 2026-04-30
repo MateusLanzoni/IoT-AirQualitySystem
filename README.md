@@ -14,6 +14,7 @@
 
 # structure
 ## catalog_service
+```text
 📦catalog_service
  ┣ 📂data
  ┃ ┣ 📜conflicts.json
@@ -28,8 +29,10 @@
  ┣ 📜scheduler.py
  ┣ 📜schemas.py
  ┗ 📜storage.py
+``` 
 
 ## decision_service
+```text
 📦decision_service
  ┣ 📂data
  ┃ ┗ 📜mock_sensor_event.json
@@ -43,6 +46,7 @@
  ┣ 📜requirements.txt
  ┣ 📜state_machine.py
  ┗ 📜state_store.py
+```
 
 ## Key Design Decisions
 

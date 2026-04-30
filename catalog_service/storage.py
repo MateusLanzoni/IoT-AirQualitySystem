@@ -69,13 +69,13 @@ class Storage:
         dev = self.devices.get(device_id)
         if dev is None:
             return False
-        dev["status"] = update.get("status", "online")
+        dev["status"] = "online" if update["value"] is not None else "offline"
         dev["last_seen"] = int(time.time())
         dev["modified"] = dev["last_seen"]
         if dev["category"] == "sensor" and "value" in update:
             dev["last_value"] = update["value"]
         if dev["category"] == "actuator" and "state" in update:
-            dev["actual_state"] = update["state"]
+            dev["actual_state"] = update["value"]
         self.save_devices()
         return True
 
