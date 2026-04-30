@@ -13,6 +13,22 @@ It integrates:
 
 ---
 
+## API RESPONSE STANDARD
+Global Response Format
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {}
+}
+```
+
+code = 0 → success
+code != 0 → error, msg shows the error message.
+
+---
+
+
 # 1. Input Interfaces
 
 ## 1.1 MQTT - Sensor State (Primary Trigger)
@@ -90,28 +106,30 @@ http://prediction-service
 **Response:**
 
 ```json
-{
-  "timestamp": 1712577600123,
-  "predictions": {
-    "temperature": {
-      "value": 30,
-      "trend": "RISING", // RISING | FALLING | STABLE
-      "target_state": "ON", // ON,OFF,STABLE
-      "devices": ["fans-1", "AC-1", "windows-1"]
-    },
-    "co2": {
-      "value": 1200,
-      "trend": "RISING",
-      "target_state": "ON", // ON,OFF,STABLE
-      "devices": ["AC-1", "windows-1"]
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "timestamp": 1712577600123,
+    "predictions": {
+      "temperature": {
+        "value": 30,
+        "trend": "RISING", // RISING | FALLING | STABLE
+        "target_state": "ON", // ON,OFF,STABLE
+        "devices": ["fans-1", "AC-1", "windows-1"]
+      },
+      "co2": {
+        "value": 1200,
+        "trend": "RISING",
+        "target_state": "ON", // ON,OFF,STABLE
+        "devices": ["AC-1", "windows-1"]
+      }
     }
   }
-}
 ```
 
 ---
 
-## 1.4 REST - Room Catalog Service
+## 1.4 REST - Room Catalog Service（pull）
 
 **Method:**
 
@@ -129,48 +147,52 @@ http://room-catalog-service
 
 ```json
 {
-  "room_id": "room1",
-  "devices": [
-    {
-      "device_id": "ac_1",
-      "type": "AC",
-      "initial_state": "OFF"
-    },
-    {
-      "device_id": "fan_1",
-      "type": "FAN",
-      "initial_state": "OFF"
-    },
-    {
-      "device_id": "window_1",
-      "type": "WINDOW",
-      "initial_state": "CLOSED"
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "room_id": "room1",
+    "devices": [
+      {
+        "device_id": "ac_1",
+        "type": "AC",
+        "initial_state": "OFF"
+      },
+      {
+        "device_id": "fan_1",
+        "type": "FAN",
+        "initial_state": "OFF"
+      },
+      {
+        "device_id": "window_1",
+        "type": "WINDOW",
+        "initial_state": "CLOSED"
+      }
+    ],
+    "policies": [
+      {
+        "metric": "temperature",
+        "condition": "> 26",
+        "priority": 2,
+        "target": { "device": "ac_1", "state": "ON" }
+      },
+      {
+        "metric": "co2",
+        "condition": "> 1000",
+        "priority": 1,
+        "target": { "device": "window_1", "state": "OPEN" }
+      }
+    ],
+    "conflicts": [
+      {
+        "rule": "mutually_exclusive"，
+        "strategy": "prefer_higher_priority"
+      }
+    ],
+    "energy_mode": "NORMAL",
+    "schedule": {
+      "start": "08:00",
+      "end": "23:00"
     }
-  ],
-  "policies": [
-    {
-      "metric": "temperature",
-      "condition": "> 26",
-      "priority": 2,
-      "target": { "device": "ac_1", "state": "ON" }
-    },
-    {
-      "metric": "co2",
-      "condition": "> 1000",
-      "priority": 1,
-      "target": { "device": "window_1", "state": "OPEN" }
-    }
-  ],
-  "conflicts": [
-    {
-      "rule": "mutually_exclusive"，
-      "strategy": "prefer_higher_priority"
-    }
-  ],
-  "energy_mode": "NORMAL",
-  "schedule": {
-    "start": "08:00",
-    "end": "23:00"
   }
 }
 ```

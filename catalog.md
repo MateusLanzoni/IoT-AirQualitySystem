@@ -1,13 +1,13 @@
-# Catalog Service Design (No DSL Version)
+# Catalog Service Design
 
 ## 1. System Overview
 
 The Catalog Service is responsible for:
 
-- Device Registry (Sensors + Actuators)
+- Device management (Sensors + Actuators)
 - Service Registry
 - Room Configuration Management
-- Basic Policy Storage (non-DSL)
+- Basic Policy Storage 
 - Aggregation API (read model)
 
 This service DOES NOT execute logic or interpret rules.
@@ -18,9 +18,10 @@ This service DOES NOT execute logic or interpret rules.
 
 Catalog Service
  ├── API Layer (FastAPI)
- ├── In-Memory Cache (indexed dict)
+ ├── DTO Layer (API Schema)
+ ├── DO Layer (Domain Object / Storage Model)
+ ├── In-Memory Cache (indexed map)
  ├── JSON Storage (persistent)
-
 ---
 
 ## 3. Storage Design
@@ -35,6 +36,20 @@ data/
  ├── services.json
 
 ---
+## API RESPONSE STANDARD
+Global Response Format
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {}
+}
+```
+
+code = 0 → success
+code != 0 → error, msg shows the error message.
+
+---
 
 ## 4. Device Modeling 
 
@@ -44,14 +59,19 @@ Devices have these two types with different calsses:
 - actuator
 
 ---
+### 4.1 Layer Definition
+DTO (API Layer): Used for request/response
 
-## 4.1 Sensor Model(device.json)
+DO (Domain Object): Used for internal storage & cache -> device.json
+
+### 4.2.1 DO Model: Sensor Model(device.json)
 
 ```json
 {
-  "key": "temp_1",
-  "name": "temp_1",
-  "device_class": "temperature",
+  "device_id": "temp_1",
+  "device_name": "temp_1",
+  "category": "sensor",
+  "type": "temperature",
   "room_id": "room1",
   "native_unit_of_measurement": "℃",
   "status": "online",
@@ -64,7 +84,7 @@ Devices have these two types with different calsses:
 }
 ```
 
-## 4.2 Actuator Model
+### 4.2.2 DO Model: Actuator
 ```json
 {
   "device_id": "ac_1",
@@ -82,6 +102,19 @@ Devices have these two types with different calsses:
 }
 ```
 
+### 4.3 mapping rule
+| DO field     | DTO field                   |
+| ------------ | --------------------------- |
+| device_id    | key                         |
+| device_name  | name                        |
+| device_class | device_class                |
+| category     | category                    |
+| room_id      | room_id                     |
+| unit         | unit                        |
+| last_value   | (optional external mapping) |
+
+
+
 # 5. Device Lifecycle
 
 ## Devices MUST support:
@@ -97,8 +130,12 @@ Devices have these two types with different calsses:
 GET /devices
 ```
 
+response:
 ```json
-"devices":[
+{
+  "code": 0,
+  "msg": "success",
+  "data": [
   {
     "key": "ac_1",
     "name": "ac_1",
@@ -115,9 +152,8 @@ GET /devices
     "room_id": "room1",
     "unit": "°C",
   }
-
-]
-
+  ]
+}
 ```
 
 ---
@@ -137,20 +173,49 @@ PUT /devices/{device_id}
   "unit": "℃"
 }
 ```
-
+Response:
+```json
+{
+  "code": 0,
+  "msg": "created",
+  "data": null
+}
+```
 
 ---
 
 ## 5.3 Heartbeat
 
+1. System Logic Overview:
+
+The system is driven by a Scheduler, which actively pulls data from external services and synchronizes it to both an in-memory cache and a persistent storage layer (JSON file).
+
+2. Scheduler Behavior
+- Execution Frequency:
+Runs every N seconds (e.g., 10 seconds, configurable).
+- Workflow:
+  - Fetch: The scheduler calls an external service API (e.g., ThingSpeak).
+  - In-Memory Update: The retrieved state is immediately updated in a local indexed map (cache).
+  - Persistence: Based on the defined write strategy, the updated state is asynchronously persisted to devices.json.
+
+Pulled Data Content:
 ```text
 PUT /devices/{device_id}/heartbeat
 ```
+sensor:
 ```json
 {
-  "device_id": "temp_1",
+  "key": "temp_1",
   "status": "online",
   "value": 27.5
+}
+```
+Actuator:
+```json
+{
+  "key": "AC_1",
+  "state": "ON"
+
 }
 ```
 
@@ -180,7 +245,7 @@ DELETE /devices/{device_id}
 
 # 6. ROOM CONFIGURATION
 
-## Model
+## Model(rooms.json)
 
 ``` json
 {
@@ -196,6 +261,7 @@ DELETE /devices/{device_id}
 
 ## CRUD
 
+GET /rooms
 POST /rooms
 GET /rooms/{room_id}
 PUT /rooms/{room_id}
@@ -210,7 +276,7 @@ Policies are stored as structured data only.
 
 No evaluation logic in this service.
 
-## Model
+## Model(policies.json)
 ```json
 {
   "policy_id": "p1",
@@ -234,7 +300,7 @@ DELETE /policies/{policy_id}
 --- 
 
 # 8. CONFLICT RULES
-## Model
+## Model(conflicts.json)
 ```json
 {
   "conflict_id": "c1",
@@ -252,13 +318,13 @@ PUT /conflicts/{id}
 DELETE /conflicts/{id}
 
 # 9. SERVICE REGISTRY
-## Model
+## Model(services.json)
 ```json
 {
   "service_id": "decision_service",
   "service_name": "decision_service",
-  "type": "decision",
   "endpoint": "http://decision-service",
+  "health_endpoint": "/health",
   "status": "online",
   "last_seen": 1710000000
 }
@@ -266,9 +332,72 @@ DELETE /conflicts/{id}
 
 ## APIs
 
-POST /services/register
-PUT /services/{service_id}/heartbeat
+GET /services
 
+response:
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": [
+    {
+      "service_id": "decision_service",
+      "service_name": "decision_service",
+      "type": "decision",
+      "endpoint": "http://decision-service",
+      "health_endpoint": "/health",
+      "status": "online",
+      "last_seen": 1710000000
+    }
+  ]
+}
+```
+
+POST /services/register
+```json
+{
+  "service_id": "decision_service",
+  "service_name": "decision_service",
+  "type": "decision",
+  "endpoint": "http://decision-service",
+  "health_endpoint": "/health"
+}
+```
+
+DELETE /services/{service_id}
+
+Health Check Scheduler
+```text
+Every N seconds (e.g., 5s):
+  for each service:
+      call endpoint + health_endpoint
+```
+
+Health Check Logic
+``` python
+for service in services:
+    try:
+        resp = GET(service.endpoint + service.health_endpoint, timeout=1s)
+
+        if resp.status_code == 200:
+            service.status = "online"
+            service.last_seen = now()
+
+            if "load" in resp.json():
+                service.load = resp.json()["load"]
+
+        else:
+            service.status = "degraded"
+
+    except:
+        service.status = "offline"
+```
+200 OK           → online
+non-200 response → degraded
+timeout/error    → offline
+
+health_check_interval = 5s
+request_timeout = 1s
 
 ## Auto Offline
 
@@ -299,13 +428,35 @@ This API MUST aggregate from:
 ### Response
 ```json
 {
-  "room_id": "room1",
-  "sensors": [],
-  "actuators": [],
-  "policies": [],
-  "conflicts": [],
-  "energy_mode": "NORMAL",
-  "schedule": {}
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "room_id": "room1",
+    "sensors": [
+      {
+        "key": "temp_1",
+        "name": "temp_1",
+        "category": "sensor",
+        "device_class": "temperature",
+        "room_id": "room1",
+        "unit": "°C"
+      }
+    ],
+    "actuators": [
+      {
+        "key": "ac_1",
+        "name": "ac_1",
+        "device_class": "AC",
+        "room_id": "room1",
+        "category": "actuator",
+        "unit": ""
+      }
+    ],
+    "policies": [],
+    "conflicts": [],
+    "energy_mode": "NORMAL",
+    "schedule": {}
+  }
 }
 ```
 ---
