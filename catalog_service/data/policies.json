@@ -1,0 +1,32 @@
+[
+  {
+    "policy_id": "p1",
+    "room_id": "room1",
+    "metric": "temperature",
+    "operator": ">",
+    "value": 26,
+    "target_device": "ac_1",
+    "target_state": "ON",
+    "priority": 2
+  },
+  {
+    "policy_id": "p2",
+    "room_id": "room1",
+    "metric": "co2",
+    "operator": ">",
+    "value": 1000,
+    "target_device": "window_1",
+    "target_state": "OPEN",
+    "priority": 1
+  },
+  {
+    "policy_id": "p3",
+    "room_id": "room1",
+    "metric": "temperature",
+    "operator": ">",
+    "value": 28,
+    "target_device": "fan_1",
+    "target_state": "ON",
+    "priority": 3
+  }
+]

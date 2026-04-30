@@ -1,0 +1,17 @@
+server:
+  host: "localhost"
+  port: 8001
+
+data_dir: "data"
+
+scheduler:
+  heartbeat_interval: 10      # seconds - pull sensor/actuator state
+  health_check_interval: 5    # seconds - check registered services
+  offline_timeout: 30         # seconds - mark device/service offline
+
+thingspeak:
+  mock_mode: true             # set false to use real ThingSpeak API
+  base_url: "https://api.thingspeak.com"
+  channel_id: "mock_channel"
+  api_key: "mock_key"
+  results: 1
