@@ -12,19 +12,15 @@
 ```
 
 ## Key Design Decisions
-┌────────────┬───────────────────────────────────────────────────┬──────────────────────────────────────┐
-│    Area    │                  Catalog Service                  │           Decision Service           │
-├────────────┼───────────────────────────────────────────────────┼──────────────────────────────────────┤
-│ Storage    │ In-memory dict (indexed map) + JSON write-through │ In-memory StateStore (thread-safe)   │
-├────────────┼───────────────────────────────────────────────────┼──────────────────────────────────────┤
-│ Scheduling │ asyncio background tasks (heartbeat + health check)│ paho-mqtt thread + asyncio.Queue decoupling │
-├────────────┼───────────────────────────────────────────────────┼──────────────────────────────────────┤
-│ ThingSpeak │ mock_mode: true for random data, disable in config to use real API │ —            │
-├────────────┼───────────────────────────────────────────────────┼──────────────────────────────────────┤
-│ MQTT Unavailable │ —                                          │ Automatically falls back to _DummyPublisher with logging │
-├────────────┼───────────────────────────────────────────────────┼──────────────────────────────────────┤
-│ Config     │ config.yaml centralizes all parameters, loaded once at startup │ Same as left │
-└────────────┴───────────────────────────────────────────────────┴──────────────────────────────────────┘
+## Key Design Decisions
+
+| Area               | Catalog Service                                              | Decision Service                                      |
+|--------------------|--------------------------------------------------------------|--------------------------------------------------------|
+| Storage            | In-memory dict (indexed map) + JSON write-through            | In-memory StateStore (thread-safe)                    |
+| Scheduling         | asyncio background tasks (heartbeat + health check)          | paho-mqtt thread + asyncio.Queue decoupling           |
+| ThingSpeak         | mock_mode: true for random data, disable in config to use real API | —                                              |
+| MQTT Unavailable   | —                                                            | Automatically falls back to _DummyPublisher with logging |
+| Config             | config.yaml centralizes all parameters, loaded once at startup | Same as left                                          |
 
 ---
 
