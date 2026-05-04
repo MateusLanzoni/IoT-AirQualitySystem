@@ -13,20 +13,16 @@ import logging
 from contextlib import asynccontextmanager
 
 import uvicorn
-import yaml
+from load_config import load_config
 from fastapi import FastAPI
 
 import state_store as ss
 from mqtt_handler import MQTTHandler, MQTTPublisher
-from processor import process_sensor_event, process_device_feedback
+from processor import process_sensor_event, process_device_feedback, start as scheduler_start
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-
-def load_config(path: str = "config.yaml") -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
 
 
 config = load_config()
@@ -73,13 +69,15 @@ async def lifespan(app: FastAPI):
 
     # Start dispatch loop
     task = asyncio.create_task(_dispatch_loop(_event_queue))
+    scheduler_task = asyncio.create_task(scheduler_start(config, _mqtt_pub))
     logger.info("Decision service started")
 
     yield
 
     task.cancel()
+    scheduler_task.cancel()
     try:
-        await task
+        await asyncio.gather(task, scheduler_task, return_exceptions=True)
     except asyncio.CancelledError:
         pass
     if _mqtt_handler:
