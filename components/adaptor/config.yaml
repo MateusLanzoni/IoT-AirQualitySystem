@@ -1,0 +1,32 @@
+# config.yaml - ThingSpeak Adaptor Mapping Configuration
+
+global:
+  update_interval_seconds: 15  
+  timeout_seconds: 10          
+
+channels:
+  
+  # Channel 1: Indoor Air Quality (IAQ) Telemetry
+  
+  - channel_id: 3319669
+    write_api_key: "NMJ74CFW97BHWQNM"
+    read_api_key: "OBMYFNLPN32TL6ZD"
+    fields:
+      field1: "room_id"
+      field2: "sensor/temp_01"
+      field3: "sensor/hum_01"
+      field4: "sensor/co2_01"
+      field5: "sensor/pm25_01"
+      field6: "actuator/ac_01"
+      field7: "actuator/fan_01"
+    status_source: null
+
+  
+  # Channel 2: Decision Command
+
+  - channel_id: 3355807
+    write_api_key: "YOUR_WRITE_API_KEY_CH2"
+    fields:
+      field1: "actuator/ac_01"
+      field2: "actuator/fan_01"
+    status_source: null

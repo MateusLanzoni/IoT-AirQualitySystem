@@ -1,0 +1,44 @@
+
+services:
+  # Service name: mqtt-broker
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: airguard-mosquitto
+
+    # ports Mapping: <Laptop Port> : <Container Port>
+    # This allows RPI or MQTT Explorer to find the broker
+    ports:
+      - "1883:1883" # MQTT protocol
+      - "9001:9001" # WebSockets
+
+    # Volumes: we map local config file into the container's expected path
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+  
+    #Network: keep microservices in the same virtual room
+    networks:
+      - airguard-network
+
+    # Auto-restart: if the broker crashes, it will try to restart
+    restart: unless-stopped
+
+  sensor-service:
+    build: .
+    container_name: airguard-sensor
+    command: ["python", "main_sensor.py"]
+    depends_on:
+      - mosquitto
+    environment:
+      
+      - MQTT_BROKER=mosquitto
+      - MQTT_USER=iot_admin
+      - MQTT_PASSWORD=airguard2026 
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+networks:
+  airguard-network:
+    driver: bridge
