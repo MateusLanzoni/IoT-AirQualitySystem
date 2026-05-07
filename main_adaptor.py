@@ -3,6 +3,7 @@ import yaml
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import uvicorn
+import logging
 
 # Import API router
 from components.adaptor.api import router
@@ -12,6 +13,11 @@ from components.adaptor.ingress_client import start_ingress
 from components.adaptor.egress_to_tspeak import start_egress
 from components.registry.registry_client import CatalogRegistry
 
+logging.basicConfig(
+    level=logging.DEBUG,  # Set to DEBUG for detailed logs during development
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 def load_config() -> dict:
     """Load configuration from config.yaml."""
@@ -25,10 +31,10 @@ registry = CatalogRegistry()
 async def lifespan(app: FastAPI):
     """Manage the lifecycle of the Adaptor application."""
     config = load_config()
-    
+    logger.info("Loading configuration...")
     # 1. Startup: Launch background asynchronous tasks
     ingress_task = asyncio.create_task(
-        start_ingress(broker_host="mosquitto", port=1883, topics=["sensor/#", "actuator/#"])
+        start_ingress(broker_host="mosquitto", port=1883, topic_to_subscribe=["airguard/#", "sensor/#", "actuator/#"])
     )
     egress_task = asyncio.create_task(start_egress(config))
     

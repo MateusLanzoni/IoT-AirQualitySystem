@@ -8,6 +8,7 @@ class SensorDeviceClass(StrEnum):
     HUMIDITY = "humidity"
     AQI = "aqi"
     PM25 = "pm25"
+    CO2 = "co2"
 
 # sensor metadata, strictly separating config from operation logic
 @dataclass

@@ -4,8 +4,9 @@ from typing import Any
 
 # Defines standard categories of actuators
 class ActuatorDeviceClass(StrEnum):
-    SWITCH = "switch"   # Fans
-    CLIMATE = "climate" # AC units
+    SWITCH = "FAN"    # Fans
+    CLIMATE = "AC"    # AC units
+    WINDOW = "WINDOW" # Windows
 
 @dataclass
 class ActuatorEntityDescription:

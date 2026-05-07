@@ -25,8 +25,6 @@ class MQTTGateway:
         self.bus = bus
         self.client = None
         self.broker = os.getenv("MQTT_BROKER", "localhost")
-        self.user = os.getenv("MQTT_USER")
-        self.password = os.getenv("MQTT_PASSWORD")
 
     async def start(self):
         """Starts the gateway, connect to broker, and runs listener loops."""
@@ -38,9 +36,7 @@ class MQTTGateway:
         # Connect to mosquitto (external MQTT broker)
         try:
             async with aiomqtt.Client(
-                hostname=self.broker,
-                username=self.user,
-                password=self.password
+                hostname=self.broker
             ) as client:
                 self.client = client
                 _LOGGER.info(f"Connected to MQTT Broker at {self.broker}")

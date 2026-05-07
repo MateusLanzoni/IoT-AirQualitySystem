@@ -1,6 +1,9 @@
 import httpx
+import logging
 from typing import List, Dict, Any, Union
 from .base import BaseTimeSeriesStorage
+
+logger = logging.getLogger(__name__)
 
 class ThingSpeakProvider(BaseTimeSeriesStorage):
     def __init__(self, config: dict):
@@ -30,8 +33,12 @@ class ThingSpeakProvider(BaseTimeSeriesStorage):
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 response = await client.get(url, params=params)
+                # log the raw response for debugging
+                logger.debug(f"ThingSpeak API response: {response.status_code}")
 
                 if response.status_code != 200:
+                    # Log the error response for debugging
+                    logger.error(f"ThingSpeak API error: {response.status_code} - {response.text}")
                     return {"error": f"ThingSpeak API error: {response.status_code} - {response.text}"}
                 
                 raw_data = response.json()
@@ -47,6 +54,9 @@ class ThingSpeakProvider(BaseTimeSeriesStorage):
                             if key.startswith("field") and value is not None:
                                 record[key] = value
                         clean_data.append(record)
+
+                        # Log each record for debugging
+                        logger.debug(f"Processed record and added to feed")
                 return clean_data
             
             except httpx.RequestError as e:

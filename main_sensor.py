@@ -1,6 +1,7 @@
-import yaml
 import logging
 import asyncio
+import httpx
+import yaml
 
 # Sensor 
 from components.sensor.airguard_sensor import AirguardSensor
@@ -31,16 +32,29 @@ def setup_sensors_from_catalog(config_list: list, bus: EventBus) -> list:
             native_unit_of_measurement = item["unit"]
         )
 
-        # Create a dynamic sensor driver instance with parameters from config
-        driver = SensorDriver(base_val=item["base_val"], noise=item["noise"])
+        # Create sensor driver with full config (base_val, noise, effects)
+        driver = SensorDriver(
+            sensor_key=item["key"],
+            sensor_config=item,
+            bus=bus
+        )
 
         # Create the sensor instance with the dynamically created description and driver
         sensors.append(AirguardSensor(description=desc, driver=driver, bus=bus))
     return sensors
 
+# Read sensors config from catalog
+async def get_devices_from_catalog(url: str):
+    """Fetch device configurations from the catalog service."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{url}/devices")
+        data = response.json()
+        return data.get("data", [])
+
 # Test 
 async def test_bus_monitor(event):
     print(f"\n [Bus Monitor] Event Fired: {event.event_type} with data: {event.data}\n")
+
 
 # Setup actuators from catalog
 def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
@@ -56,10 +70,27 @@ def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
         actuators.append(AirguardActuator(description=desc, driver=driver, bus=bus))
     return actuators
 
+
 async def main():
+    # Load sensor-specific parameters from configuration file
+    with open("sensor_value_config.yaml", "r") as f:
+        sensor_config_data = yaml.safe_load(f)
+    # Create mapping: sensor_key → sensor_config
+    sensor_params_map = {s["key"]: s for s in sensor_config_data.get("sensors", [])}
+    
     # Load configuration from YAML file ,later catalog from outside
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    catalog_url = "http://host.docker.internal:8001"  # URL of the catalog service
+    all_devices = await get_devices_from_catalog(catalog_url)
+
+    # Separate sensors and actuators based on device_class
+    sensors_config = [d for d in all_devices if d["category"] == "sensor"]
+    actuators_config = [d for d in all_devices if d["category"] == "actuator"]
+    
+    # Merge sensor-specific parameters into sensor config from catalog
+    for sensor_cfg in sensors_config:
+        sensor_key = sensor_cfg["key"]
+        if sensor_key in sensor_params_map:
+            sensor_cfg.update(sensor_params_map[sensor_key])
     
     # Initialize the event bus only once 
     bus = EventBus()
@@ -72,8 +103,8 @@ async def main():
     bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
     
     # Initialize sensors and actuators, and register them to the bus
-    all_sensors = setup_sensors_from_catalog(config.get("sensors", []), bus)
-    all_actuators = setup_actuators_from_catalog(config.get("actuators", []), bus)
+    all_sensors = setup_sensors_from_catalog(sensors_config, bus)
+    all_actuators = setup_actuators_from_catalog(actuators_config, bus)
 
     _LOGGER.info(f"Initialized {len(all_sensors)} sensors with Event Bus")
     _LOGGER.info(f"Initialized {len(all_actuators)} actuators with Event Bus")

@@ -53,7 +53,7 @@ def process_message(message: aiomqtt.Message)-> None:
         final_value = None
 
         # Attempt to parse as JSON
-        # Expected: {"device_id": "temp_01", "value": 26.72, "unit": "°C"}
+        # Expected: {"device_id": "temp_1", "value": 26.72, "unit": "°C"}
         try:
             parsed_data = json.loads(raw_payload)
             if isinstance(parsed_data, dict) and "value" in parsed_data:

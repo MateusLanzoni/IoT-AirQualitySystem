@@ -5,7 +5,7 @@ import socket
 logger = logging.getLogger(__name__)
 
 # Base URL for the Catalog Service. Use Docker compose service name 'catalog_service'
-CATALOG_BASE_URL = "http://catalog_service:8001"
+CATALOG_BASE_URL = "http://host.docker.internal:8001"
 
 def get_local_ip():
     """Retrieve the container's routable IP address."""
@@ -22,7 +22,9 @@ class CatalogRegistry:
     def __init__(self):
         self.service_id = "thingspeak-adaptor"
         self.port = 8000
-        self.ip = get_local_ip()
+        # self.ip = get_local_ip()
+        # abandon 172.18.0.4，cuz Catalog is on local test
+        self.ip = "127.0.0.1"
         
     async def register(self):
         """Send POST request to Catalog Service."""
@@ -31,8 +33,10 @@ class CatalogRegistry:
         # Payload matches teammate's scheduler logic exactly
         payload = {
             "service_id": self.service_id,
+            "service_name": "ThingSpeak_Adaptor",
             "endpoint": f"http://{self.ip}:{self.port}",
-            "health_endpoint": "/health"
+            "health_endpoint": "/health",
+            "type": "adaptor"
         }
         
         async with httpx.AsyncClient() as client:

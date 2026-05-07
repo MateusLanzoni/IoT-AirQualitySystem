@@ -3,16 +3,18 @@ REST API Interface for monitoring the Adaptor .
 """
 import yaml
 from datetime import datetime
-from typing import List, dict, Any
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, Query, HTTPException
+import logging
 
 from components.adaptor.base import BaseTimeSeriesStorage
 from components.adaptor.thingspeak import ThingSpeakProvider
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-def load_config() -> dict:
-    with open("config.yaml", "r") as f:
+def load_config() -> Dict[str, Any]:
+    with open("components/adaptor/config.yaml", "r") as f:
         return yaml.safe_load(f)
 
 # Global singleton initialization
@@ -43,6 +45,9 @@ async def get_history(
     # Format datetime objects to thingspeak's expected string format
     start_str = starttime.strftime("%Y-%m-%dT%H:%M:%SZ")
     end_str = endtime.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # Log the query parameters for debugging
+    logger.info(f"Fetching history for room {roomid} from {start_str} to {end_str}")
 
     # Call the abstracted storage 
     result = await db.get_history(

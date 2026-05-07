@@ -33,11 +33,25 @@ services:
     environment:
       
       - MQTT_BROKER=mosquitto
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  adaptor-service:
+    build: .
+    container_name: airguard-adaptor
+    command: ["python", "main_adaptor.py"]
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_BROKER=mosquitto
       - MQTT_USER=iot_admin
       - MQTT_PASSWORD=airguard2026 
     networks:
       - airguard-network
     restart: unless-stopped
+    volumes:
+      - ./components/adaptor/config.yaml:/app/config.yaml:ro
 
 networks:
   airguard-network:
