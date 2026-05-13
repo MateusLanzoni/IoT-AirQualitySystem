@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from .schemas import HistoryPoint, HistoryResponse, IndoorSnapshot, OutdoorSnapshot, ServiceRegistrationPayload
 
@@ -41,14 +42,38 @@ class RoomCatalogClient:
 
 
 class ThingSpeakAdapterClient:
-    def __init__(self, base_url: str, history_path: str, timeout: float):
+    def __init__(
+        self,
+        base_url: str,
+        history_path: str,
+        room_param: str,
+        start_param: str,
+        end_param: str,
+        point_interval_seconds: int,
+        timeout: float,
+    ):
         self.base_url = base_url.rstrip("/")
         self.history_path = history_path
+        self.room_param = room_param
+        self.start_param = start_param
+        self.end_param = end_param
+        self.point_interval_seconds = point_interval_seconds
         self.timeout = timeout
 
-    async def fetch_history(self, room_id: str, lookback_points: int) -> HistoryResponse:
+    async def fetch_history(
+        self,
+        room_id: str,
+        lookback_points: int,
+        end_time: datetime | None = None,
+    ) -> HistoryResponse:
         url = f"{self.base_url}{self.history_path}"
-        params = {"room_id": room_id, "limit": lookback_points}
+        end = end_time or datetime.now(timezone.utc)
+        start = end - timedelta(seconds=lookback_points * self.point_interval_seconds)
+        params = {
+            self.room_param: room_id,
+            self.start_param: format_utc(end=start),
+            self.end_param: format_utc(end=end),
+        }
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
@@ -100,7 +125,7 @@ class OutdoorAqiClient:
 
 def normalize_history_response(room_id: str, payload: Any) -> HistoryResponse:
     if isinstance(payload, dict) and "points" in payload:
-        points = [HistoryPoint.model_validate(normalize_point(item, room_id)) for item in payload.get("points", [])]
+        points = normalize_points(payload.get("points", []), room_id)
         latest = payload.get("latest")
         return HistoryResponse(
             room_id=payload.get("room_id", room_id),
@@ -110,12 +135,12 @@ def normalize_history_response(room_id: str, payload: Any) -> HistoryResponse:
         )
 
     if isinstance(payload, list):
-        points = [HistoryPoint.model_validate(normalize_point(item, room_id)) for item in payload]
+        points = normalize_points(payload, room_id)
         return HistoryResponse(room_id=room_id, points=points, latest=derive_latest(points), raw={"items": payload})
 
     if isinstance(payload, dict):
         items = payload.get("items") or payload.get("data") or payload.get("history") or []
-        points = [HistoryPoint.model_validate(normalize_point(item, room_id)) for item in items]
+        points = normalize_points(items, room_id)
         return HistoryResponse(room_id=room_id, points=points, latest=derive_latest(points), raw=payload)
 
     raise ValueError("Unsupported ThingSpeak Adapter response shape")
@@ -134,10 +159,20 @@ def normalize_point(item: dict[str, Any], room_id: str) -> dict[str, Any]:
         "device_id": item.get("device_id"),
         "temperature": pick(item.get("temperature"), item.get("field2")),
         "humidity": pick(item.get("humidity"), item.get("field3")),
-        "pm25": pick(item.get("pm25"), item.get("field4"), item.get("pm2_5")),
-        "co2": pick(item.get("co2"), item.get("field5")),
+        "co2": pick(item.get("co2"), item.get("field4")),
+        "pm25": pick(item.get("pm25"), item.get("pm2_5"), item.get("field5")),
         "source": pick(item.get("source"), "thingspeak-adapter"),
     }
+
+
+def normalize_points(items: list[dict[str, Any]], room_id: str) -> list[HistoryPoint]:
+    points: list[HistoryPoint] = []
+    for item in items:
+        try:
+            points.append(HistoryPoint.model_validate(normalize_point(item, room_id)))
+        except (TypeError, ValidationError, ValueError):
+            continue
+    return sorted(points, key=lambda point: point.timestamp)
 
 
 def derive_latest(points: list[HistoryPoint]) -> IndoorSnapshot | None:
@@ -150,3 +185,7 @@ def derive_latest(points: list[HistoryPoint]) -> IndoorSnapshot | None:
         co2=latest.co2,
         pm25=latest.pm25,
     )
+
+
+def format_utc(end: datetime) -> str:
+    return end.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

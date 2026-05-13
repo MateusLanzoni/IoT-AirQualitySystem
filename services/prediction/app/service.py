@@ -20,11 +20,10 @@ class PredictionService:
     async def register(self) -> None:
         payload = ServiceRegistrationPayload(
             service_id=settings.service_name,
-            name="Prediction Service",
-            version=settings.service_version,
-            base_url=settings.service_url,
-            endpoints=["GET /health", "POST /predict"],
-            capabilities=["short-term-iaq-forecasting", "outdoor-aqi-enrichment"],
+            service_name=settings.service_name,
+            type=settings.service_type,
+            endpoint=settings.service_url,
+            health_endpoint="/health",
         )
         try:
             await self.clients.room_catalog.register_service(payload)
@@ -40,6 +39,7 @@ class PredictionService:
         history_response = await self.clients.thingspeak.fetch_history(
             room_id=request.room_id,
             lookback_points=lookback_points,
+            end_time=request.timestamp,
         )
         if not history_response.points:
             raise HTTPException(status_code=404, detail=f"No historical data available for room '{request.room_id}'")
@@ -70,3 +70,25 @@ class PredictionService:
             risk=risk,
             summary=summary,
         )
+
+    @staticmethod
+    def to_decision_payload(response: PredictionResponse) -> dict:
+        values = response.prediction.model_dump()
+        predictions = {
+            metric: {
+                "value": value,
+                "horizon_minutes": response.horizon_minutes,
+                "generated_at": response.generated_at.isoformat(),
+            }
+            for metric, value in values.items()
+        }
+        return {
+            "code": 0,
+            "msg": "success",
+            "data": {
+                "room_id": response.room_id,
+                "predictions": predictions,
+                "risk": response.risk,
+                "summary": response.summary,
+            },
+        }

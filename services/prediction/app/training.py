@@ -9,8 +9,8 @@ from sklearn.multioutput import MultiOutputRegressor
 FEATURES = [
     "temperature",
     "humidity",
-    "pm25",
     "co2",
+    "pm25",
 ]
 
 

@@ -23,7 +23,19 @@ Purpose:
 ### `POST /predict`
 
 Purpose:
-- Request a short-term forecast for one room
+- Manual/debug request for a short-term forecast for one room
+
+### `GET /prediction/{room_id}`
+
+Purpose:
+- Decision Service integration endpoint
+- Returns the wrapper format expected by `decision_service/processor.py`
+
+### `GET /outdoor-aqi`
+
+Purpose:
+- Outdoor AQI gateway endpoint for Turin
+- Uses the same WAQI-compatible client used during prediction
 
 ## Request Rules
 
@@ -69,7 +81,7 @@ Expected payload:
 
 ### ThingSpeak Adapter
 
-- `GET /prediction/history?room_id=room-101&limit=12`
+- `GET /api/v1/history?roomid=room1&starttime=2026-05-13T10:00:00Z&endtime=2026-05-13T11:00:00Z`
 
 Accepted response shapes:
 - `{ "room_id": "...", "points": [...] }`
@@ -80,13 +92,21 @@ Point fields accepted:
 - `timestamp` or `created_at`
 - `temperature` or `field2`
 - `humidity` or `field3`
-- `pm25` or `field4`
-- `co2` or `field5`
+- `co2` or `field4`
+- `pm25` or `field5`
+
+The field mapping follows the current sensor/adaptor branch:
+- `field2`: temperature
+- `field3`: humidity
+- `field4`: CO2
+- `field5`: PM2.5
 
 ### Outdoor AQI Gateway
 
 - current implementation is configured to fetch Turin AQI
+- gateway endpoint exposed by Prediction Service:
+  - `GET /outdoor-aqi`
 - default path pattern:
-  - `GET https://api.waqi.info/feed/turin/?token=...`
+  - `GET https://api.waqi.info/feed/@13202/?token=...`
 - the client reads:
   - `data.aqi`

@@ -1,72 +1,159 @@
 # Prediction Service
 
-This service implements the proposal-aligned ML forecasting workflow for AirGuard.
+FastAPI service for AirGuard indoor air quality forecasting.
 
-## Proposal-Aligned Responsibilities
+## Purpose
 
-- Register itself in `Room Catalog` via REST on startup
-- Optionally send service heartbeat updates to `Room Catalog`
-- Accept forecast requests from `Decision Service` via REST
-- Retrieve recent and historical indoor sensor data from `ThingSpeak Adapter` via REST
-- Retrieve current outdoor AQI for Turin from the outdoor API gateway via REST
-- Produce short-term forecasts for temperature, humidity, CO2, and PM2.5
-- Return prediction results to `Decision Service` via REST
+The service gives the Decision Service short-term forecasts for:
 
-## Runtime Flow
+- temperature
+- humidity
+- CO2
+- PM2.5
 
-1. `Decision Service` calls `POST /predict` with a `room_id`
-2. `Prediction Service` fetches room history from `ThingSpeak Adapter`
-3. `Prediction Service` fetches current outdoor AQI for Turin
-4. `Prediction Service` runs the forecasting model
-5. `Prediction Service` returns forecasted IAQ trends to `Decision Service`
+It fetches indoor history from the ThingSpeak Adapter and outdoor AQI for Torino from WAQI station `@13202`.
+
+## Run Locally
+
+```bash
+cd services/prediction
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+OUTDOOR_AQI_TOKEN="your-token-here" \
+ROOM_CATALOG_BASE_URL="http://localhost:8001" \
+THINGSPEAK_ADAPTER_BASE_URL="http://localhost:8000" \
+uvicorn app.main:app --host 0.0.0.0 --port 8003
+```
 
 ## Endpoints
 
 ### `GET /health`
 
-Returns service health, model source, dependency URLs, and Room Catalog registration state.
+```bash
+curl http://localhost:8003/health
+```
 
-### `POST /predict`
+### `GET /prediction/{room_id}`
 
-Request body:
+Main Decision Service endpoint.
+
+```bash
+curl "http://localhost:8003/prediction/room1"
+```
+
+Returns:
 
 ```json
 {
-  "room_id": "room-101",
-  "horizon_minutes": 15,
-  "lookback_points": 12
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "room_id": "room1",
+    "predictions": {
+      "temperature": {
+        "value": 25.5,
+        "horizon_minutes": 15,
+        "generated_at": "2026-05-13T10:00:00Z"
+      }
+    },
+    "risk": "normal",
+    "summary": "Forecast remains within the expected comfort and air quality range."
+  }
 }
 ```
 
-The service itself retrieves:
-- recent and historical indoor data
-- latest outdoor AQI for Turin
+### `GET /outdoor-aqi`
 
-## Final Integration Notes
+Torino AQI gateway endpoint.
 
-- `ThingSpeak Adapter` is expected to expose a history endpoint that can be filtered by `room_id`
-- `Outdoor AQI` is currently configured for Turin using the WAQI-compatible feed path
-- for production, set `OUTDOOR_AQI_TOKEN` in the environment
-- the local mock services and demo scripts are for development only and should not be part of the final PR
+```bash
+curl http://localhost:8003/outdoor-aqi
+```
+
+### `POST /predict`
+
+Manual/debug endpoint.
+
+```bash
+curl -X POST http://localhost:8003/predict \
+  -H "Content-Type: application/json" \
+  -d '{"room_id":"room1","horizon_minutes":15,"lookback_points":12}'
+```
+
+## Environment Variables
+
+| Variable | Default |
+| --- | --- |
+| `PORT` | `8003` |
+| `MODEL_PATH` | `/app/model/model.joblib` |
+| `ROOM_CATALOG_BASE_URL` | `http://catalog-service:8001` |
+| `THINGSPEAK_ADAPTER_BASE_URL` | `http://adaptor-service:8000` |
+| `THINGSPEAK_ADAPTER_HISTORY_PATH` | `/api/v1/history` |
+| `OUTDOOR_AQI_BASE_URL` | `https://api.waqi.info` |
+| `OUTDOOR_AQI_CITY` | `@13202` |
+| `OUTDOOR_AQI_TOKEN` | empty |
+
+The Torino feed is:
+
+```text
+https://api.waqi.info/feed/@13202/?token=$OUTDOOR_AQI_TOKEN
+```
+
+Keep the token in the runtime environment, not in source control.
+
+## ThingSpeak Adapter Contract
+
+Expected endpoint:
+
+```text
+GET /api/v1/history?roomid=<room_id>&starttime=<iso>&endtime=<iso>
+```
+
+Field mapping:
+
+| Field | Metric |
+| --- | --- |
+| `field2` | temperature |
+| `field3` | humidity |
+| `field4` | CO2 |
+| `field5` | PM2.5 |
+
+## Catalog Registration
+
+The service registers on startup:
+
+```text
+POST /services/register
+```
+
+Payload:
+
+```json
+{
+  "service_id": "prediction-service",
+  "service_name": "prediction-service",
+  "type": "prediction",
+  "endpoint": "http://prediction-service:8003",
+  "health_endpoint": "/health"
+}
+```
 
 ## Training
-
-Train from CSV:
 
 ```bash
 python3 services/prediction/train.py --csv-path /path/to/data.csv
 ```
 
-Train from ZIP:
-
 ```bash
-python3 services/prediction/train.py --zip-path "/Users/syedumer/Downloads/archive (2).zip"
+python3 services/prediction/train.py --zip-path /path/to/archive.zip
 ```
 
-The trainer:
-- renames dataset columns
-- aggregates multiple sensor rows by timestamp
-- resamples to 5-minute intervals
-- creates lag, rolling, and trend features
-- trains a multi-output regressor for `temperature`, `humidity`, `pm25`, and `co2`
-- saves the model to `services/prediction/model/model.joblib`
+The trained model is written to:
+
+```text
+services/prediction/model/model.joblib
+```
+
+Model artifacts are ignored by git. Without a trained model, the service uses a heuristic baseline.

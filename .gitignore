@@ -1,0 +1,6 @@
+.venv/
+.run/
+data/
+__pycache__/
+*.pyc
+services/prediction/model/*.joblib

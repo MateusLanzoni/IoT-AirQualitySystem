@@ -57,12 +57,10 @@ class PredictionResponse(BaseModel):
 
 class ServiceRegistrationPayload(BaseModel):
     service_id: str
-    name: str
-    version: str
-    base_url: str
-    endpoints: list[str]
-    capabilities: list[str]
-    status: str = "online"
+    service_name: str
+    type: str
+    endpoint: str
+    health_endpoint: str = "/health"
 
 
 class HistoryResponse(BaseModel):

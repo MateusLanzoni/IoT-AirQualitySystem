@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 
 from .clients import ClientBundle, OutdoorAqiClient, RoomCatalogClient, ThingSpeakAdapterClient
 from .config import settings
@@ -21,6 +21,10 @@ async def lifespan(app: FastAPI):
             thingspeak=ThingSpeakAdapterClient(
                 base_url=settings.thingspeak_adapter_base_url,
                 history_path=settings.thingspeak_adapter_history_path,
+                room_param=settings.thingspeak_room_param,
+                start_param=settings.thingspeak_start_param,
+                end_param=settings.thingspeak_end_param,
+                point_interval_seconds=settings.history_point_interval_seconds,
                 timeout=settings.request_timeout_seconds,
             ),
             outdoor_aqi=OutdoorAqiClient(
@@ -66,3 +70,23 @@ def health():
 @app.post("/predict")
 async def predict(request: PredictionRequest):
     return await app.state.service.predict(request)
+
+
+@app.get("/outdoor-aqi")
+async def outdoor_aqi():
+    return await app.state.service.clients.outdoor_aqi.fetch_current()
+
+
+@app.get("/prediction/{room_id}")
+async def prediction_for_decision(
+    room_id: str,
+    horizon_minutes: int = Query(default=settings.default_horizon_minutes, ge=1, le=180),
+    lookback_points: int = Query(default=settings.default_lookback_points, ge=3, le=288),
+):
+    request = PredictionRequest(
+        room_id=room_id,
+        horizon_minutes=horizon_minutes,
+        lookback_points=lookback_points,
+    )
+    response = await app.state.service.predict(request)
+    return app.state.service.to_decision_payload(response)

@@ -85,12 +85,16 @@ services:
       context: ./services/prediction
     container_name: airguard-prediction
     environment:
-      MQTT_HOST: mqtt-broker
-      MQTT_PORT: "1883"
-      MQTT_TOPIC_IN: "airguard/+/features"
-      MQTT_TOPIC_OUT: "airguard/{roomId}/recommendations"
-    depends_on:
-      - mqtt-broker
+      PORT: "8003"
+      MODEL_PATH: /app/model/model.joblib
+      ROOM_CATALOG_BASE_URL: http://catalog-service:8001
+      THINGSPEAK_ADAPTER_BASE_URL: http://adaptor-service:8000
+      THINGSPEAK_ADAPTER_HISTORY_PATH: /api/v1/history
+      OUTDOOR_AQI_CITY: "@13202"
+      OUTDOOR_AQI_TOKEN: ${OUTDOOR_AQI_TOKEN:-}
+      OUTDOOR_AQI_SOURCE_NAME: waqi-turin
+    ports:
+      - "8003:8003"
     networks:
       - airguard_net
     restart: unless-stopped
