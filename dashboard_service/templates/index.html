@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirGuard Dashboard</title>
+  <style>
+    :root {
+      --bg: #08111b;
+      --panel: rgba(12, 20, 32, 0.82);
+      --panel-2: rgba(18, 28, 44, 0.88);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --line: rgba(149, 180, 216, 0.18);
+      --accent: #49d6a7;
+      --accent-2: #79a7ff;
+      --warn: #ffbf69;
+      --bad: #ff7d7d;
+      --good: #67e8a4;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 80% 10%, rgba(73, 214, 167, 0.13), transparent 28%),
+        linear-gradient(180deg, #08111b 0%, #09131f 52%, #050b12 100%);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+
+    .hero-card, .glass-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .hero-card {
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-card:before {
+      content: "";
+      position: absolute;
+      inset: auto -10% -45% auto;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(73, 214, 167, 0.2), transparent 68%);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid rgba(103, 232, 164, 0.24);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(73, 214, 167, 0.07);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 16px 0 10px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 4vw, 4rem);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .metric {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px 16px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    .metric .value {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .glass-card {
+      padding: 18px;
+    }
+
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .pill {
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .status-card {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(10, 18, 30, 0.82);
+    }
+
+    .status-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .status-name {
+      font-weight: 700;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 0 6px rgba(103, 232, 164, 0.12);
+    }
+
+    .status-card.offline .status-dot { background: var(--bad); box-shadow: 0 0 0 6px rgba(255, 125, 125, 0.12); }
+    .status-card.degraded .status-dot { background: var(--warn); box-shadow: 0 0 0 6px rgba(255, 191, 105, 0.12); }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .list-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .list-row .muted { color: var(--muted); font-size: 12px; }
+    .list-row .strong { font-weight: 700; }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 18px;
+    }
+
+    .table th, .table td {
+      text-align: left;
+      padding: 12px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 14px;
+    }
+
+    .table th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(121, 167, 255, 0.12);
+      color: #b9d0ff;
+      border: 1px solid rgba(121, 167, 255, 0.18);
+      font-size: 12px;
+    }
+
+    .value-box {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .value-card {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .value-card .k {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .value-card .v {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1080px) {
+      .hero, .section-grid, .cards-grid, .value-box { grid-template-columns: 1fr; }
+      .hero-metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="hero-card">
+        <span class="eyebrow">AirGuard Dashboard</span>
+        <h1>Indoor air quality, live service state, and control feedback in one view.</h1>
+        <p class="subtitle">
+          This dashboard is a new FastAPI-powered view over the existing catalog, prediction, decision, and adaptor services.
+          It is intentionally lightweight so it can be opened quickly while the backend contracts are still evolving.
+        </p>
+
+        <div class="hero-metrics">
+          <div class="metric">
+            <div class="label">Room</div>
+            <div class="value">{{ room_id }}</div>
+          </div>
+          <div class="metric">
+            <div class="label">Services discovered</div>
+            <div class="value">{{ services|length }}</div>
+          </div>
+          <div class="metric">
+            <div class="label">Recent telemetry points</div>
+            <div class="value">{{ history|length }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-stack">
+        <div class="glass-card">
+          <div class="card-title">
+            <span>System status</span>
+            <span class="pill">Auto-collected</span>
+          </div>
+          <div class="list">
+            {% for key, item in status_cards.items() %}
+            <div class="list-row">
+              <div>
+                <div class="strong">{{ item.label }}</div>
+                <div class="muted">{{ key }}</div>
+              </div>
+              <div class="tag">{{ item.status }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-title">
+            <span>Latest sample</span>
+            <span class="pill">History API</span>
+          </div>
+          <div class="value-box">
+            <div class="value-card"><div class="k">Temp</div><div class="v">{{ latest.get('field2', '-') }}</div></div>
+            <div class="value-card"><div class="k">Humidity</div><div class="v">{{ latest.get('field3', '-') }}</div></div>
+            <div class="value-card"><div class="k">CO2</div><div class="v">{{ latest.get('field4', '-') }}</div></div>
+            <div class="value-card"><div class="k">PM2.5</div><div class="v">{{ latest.get('field5', '-') }}</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cards-grid">
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Catalog</span><span class="status-dot"></span></div>
+        <div class="muted">Room model, devices, policies, and service registry.</div>
+      </article>
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Prediction</span><span class="status-dot"></span></div>
+        <div class="muted">Forecast payload consumed by the decision pipeline.</div>
+      </article>
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Decision</span><span class="status-dot"></span></div>
+        <div class="muted">In-memory state store and command publication status.</div>
+      </article>
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Adaptor</span><span class="status-dot"></span></div>
+        <div class="muted">ThingSpeak history and MQTT bridge.</div>
+      </article>
+    </section>
+
+    <section class="section-grid">
+      <div class="glass-card">
+        <div class="card-title">
+          <span>Room snapshot</span>
+          <span class="pill">{{ room.get('energy_mode', 'NORMAL') }}</span>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>Category</th>
+              <th>Class</th>
+              <th>Unit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for device in room.get('sensors', []) %}
+            <tr>
+              <td>{{ device.name }}</td>
+              <td><span class="tag">sensor</span></td>
+              <td>{{ device.device_class }}</td>
+              <td>{{ device.unit }}</td>
+            </tr>
+            {% endfor %}
+            {% for device in room.get('actuators', []) %}
+            <tr>
+              <td>{{ device.name }}</td>
+              <td><span class="tag">actuator</span></td>
+              <td>{{ device.device_class }}</td>
+              <td>{{ device.unit }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-title">
+          <span>Prediction payload</span>
+          <span class="pill">/prediction/{{ room_id }}</span>
+        </div>
+        <div class="list">
+          {% if prediction.get('predictions') %}
+            {% for metric, info in prediction.get('predictions').items() %}
+            <div class="list-row">
+              <div>
+                <div class="strong">{{ metric }}</div>
+                <div class="muted">{{ info.generated_at }}</div>
+              </div>
+              <div class="tag">{{ info.value }}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="list-row">
+              <div>
+                <div class="strong">No prediction data yet</div>
+                <div class="muted">Start the prediction service to see forecast cards here.</div>
+              </div>
+              <div class="tag">offline</div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="footer-note">
+          Dashboard backend URL: {{ service_urls.catalog }} | {{ service_urls.prediction }} | {{ service_urls.decision }} | {{ service_urls.adaptor }}
+        </div>
+      </div>
+    </section>
+
+    <section class="glass-card">
+      <div class="card-title">
+        <span>Decision state store</span>
+        <span class="pill">/status</span>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Device</th>
+            <th>State</th>
+            <th>Last action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for room_name, devices in decision_states.items() %}
+            {% for device_name, entry in devices.items() %}
+            <tr>
+              <td>{{ room_name }}</td>
+              <td>{{ device_name }}</td>
+              <td><span class="tag">{{ entry.state }}</span></td>
+              <td>{{ entry.last_action_time }}</td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+          {% if not decision_states %}
+          <tr>
+            <td colspan="4">No actuator decisions have been stored yet.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+</body>
+</html>

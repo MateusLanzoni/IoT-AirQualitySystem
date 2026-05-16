@@ -1,0 +1,33 @@
+AirGuard Action Plan
+
+Phase 1 - Dashboard, Backend, and Telegram scope
+1. Map the current code to the parts owned by the dashboard/backend/telegram work. DONE
+2. Identify the services and endpoints those parts depend on, especially the catalog, prediction, decision, adaptor, and MQTT flow. DONE
+3. Review the current implementation for missing wiring, contract mismatches, or incomplete integration points. DONE
+4. List the files that need to be touched for each feature so the changes stay localized. DONE
+5. Implement the smallest needed fixes or additions for the dashboard/backend/telegram path. DONE
+6. Validate the behavior with the narrowest available checks before moving on. DONE
+
+Phase 2 - Merge problem cleanup
+7. Inspect the branches and merge history again only for the files that are actually conflicting or overlapping. DONE
+8. Group merge problems by file and by subsystem so they can be fixed in a controlled order. DONE
+9. Resolve shared-file conflicts first, especially configuration, README, compose, and service contract files. NOT FINISHED
+10. Check that the merged branch still matches the intended contracts between sensor, adaptor, prediction, and decision. NOT FINISHED
+11. Re-run validation after each merge-related fix to avoid introducing new regressions. NOT FINISHED
+
+Phase 3 - Final verification
+12. Review the final branch state against main. NOT FINISHED
+13. Confirm the key service paths still line up end to end. NOT FINISHED
+14. Summarize remaining risks and any follow-up work that should be scheduled later. DONE
+
+Additional completed work
+- Create a new dashboard service at dashboard_service/main.py and dashboard_service/templates/index.html. DONE
+- Add dashboard-service to docker-compose.yml with port 8501 and service URL environment variables. DONE
+- Start dashboard-service with Docker Compose and verify health endpoint response. DONE
+- Fix dashboard Internal Server Error by updating the TemplateResponse call signature in dashboard_service/main.py. DONE
+- Fix adaptor startup config loading fallback in main_adaptor.py to support both config.yaml and components/adaptor/config.yaml. DONE
+
+Notes
+- The dashboard/backend/telegram work is handled first.
+- Merge cleanup comes after the feature-facing plan is clear.
+- Keep changes small and focused so each validation step can tell us something useful.

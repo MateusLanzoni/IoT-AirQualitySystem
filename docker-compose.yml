@@ -16,7 +16,7 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
-  
+
     #Network: keep microservices in the same virtual room
     networks:
       - airguard-network
@@ -31,7 +31,7 @@ services:
     depends_on:
       - mosquitto
     environment:
-      
+
       - MQTT_BROKER=mosquitto
     networks:
       - airguard-network
@@ -46,12 +46,28 @@ services:
     environment:
       - MQTT_BROKER=mosquitto
       - MQTT_USER=iot_admin
-      - MQTT_PASSWORD=airguard2026 
+      - MQTT_PASSWORD=airguard2026
     networks:
       - airguard-network
     restart: unless-stopped
     volumes:
       - ./components/adaptor/config.yaml:/app/config.yaml:ro
+
+  dashboard-service:
+    build:
+      context: ./dashboard_service
+    container_name: airguard-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - CATALOG_SERVICE_URL=http://host.docker.internal:8001
+      - PREDICTION_SERVICE_URL=http://host.docker.internal:8003
+      - DECISION_SERVICE_URL=http://host.docker.internal:8002
+      - ADAPTOR_SERVICE_URL=http://host.docker.internal:8000
+      - DEFAULT_ROOM_ID=room1
+    networks:
+      - airguard-network
+    restart: unless-stopped
 
 networks:
   airguard-network:

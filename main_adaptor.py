@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 import yaml
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -21,8 +22,17 @@ logger = logging.getLogger(__name__)
 
 def load_config() -> dict:
     """Load configuration from config.yaml."""
-    with open("config.yaml", "r") as f:
-        return yaml.safe_load(f)
+    config_candidates = [
+        Path("config.yaml"),
+        Path("components/adaptor/config.yaml"),
+    ]
+
+    for config_path in config_candidates:
+        if config_path.exists():
+            with config_path.open("r", encoding="utf-8") as f:
+                return yaml.safe_load(f)
+
+    raise FileNotFoundError("Unable to locate adaptor config.yaml")
 
 # Initialize service registry client
 registry = CatalogRegistry()
@@ -37,20 +47,20 @@ async def lifespan(app: FastAPI):
         start_ingress(broker_host="mosquitto", port=1883, topic_to_subscribe=["airguard/#", "sensor/#", "actuator/#"])
     )
     egress_task = asyncio.create_task(start_egress(config))
-    
+
     # 2. Startup: Register service to Catalog
     await registry.register()
-    
+
     # Yield control to FastAPI to handle incoming HTTP requests
-    yield 
-    
+    yield
+
     # 3. Shutdown: Deregister service gracefully
     await registry.deregister()
-    
+
     # 4. Shutdown: Cancel background tasks
     ingress_task.cancel()
     egress_task.cancel()
-    
+
     # Wait for tasks to clean up and exit
     try:
         await asyncio.gather(ingress_task, egress_task, return_exceptions=True)
