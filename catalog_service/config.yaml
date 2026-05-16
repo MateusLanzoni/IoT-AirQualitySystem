@@ -1,0 +1,40 @@
+server:
+  host: "localhost"
+  port: 8001
+
+data_dir: "data"
+
+scheduler:
+  heartbeat_interval: 10      # seconds - pull sensor/actuator state
+  health_check_interval: 5    # seconds - check registered services
+  offline_timeout: 30         # seconds - mark device/service offline
+
+thingspeak:
+  mock_mode: false             # set false to use real ThingSpeak API
+  base_url: "https://api.thingspeak.com/channels/{channel_id}/feeds.json"
+  channel:
+    id: "3319669"
+    fields:
+      field2:
+        device_id: temp_1
+        name: temp_1
+      field3:
+        device_id: humi_1
+        name: humi_1
+      field4:
+        device_id: co2_1
+        name: co2_1
+      field5:
+        device_id: pm25_1
+        name: pm25_1
+      field6:
+        device_id: ac_1
+        name: ac_1
+      field7:
+        device_id: fan_1
+        name: fan_1
+  api_key: "OBMYFNLPN32TL6ZD"
+  results: 1
+ 
+
+    

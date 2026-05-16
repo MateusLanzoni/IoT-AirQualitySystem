@@ -1,0 +1,21 @@
+[
+  {
+    "service_id": "decision_service",
+    "service_name": "decision_service",
+    "type": "decision",
+    "endpoint": "http://localhost:8002",
+    "health_endpoint": "/health",
+    "status": "offline",
+    "last_seen": 1777539116,
+    "load": 0
+  },
+  {
+    "service_id": "prediction_service",
+    "service_name": "prediction_service",
+    "type": "prediction",
+    "endpoint": "http://localhost:8003",
+    "health_endpoint": "/health",
+    "status": "offline",
+    "last_seen": 0
+  }
+]

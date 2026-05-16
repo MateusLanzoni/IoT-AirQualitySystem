@@ -1,0 +1,46 @@
+server:
+  host: "localhost"
+  port: 8002
+
+mqtt:
+  broker: "localhost"
+  port: 1883
+  client_id: "decision_service"
+  topic_sensor: "sensor/+/state"
+  topic_device_status: "device/+/+/status"
+  keepalive: 60
+
+services:
+  catalog_base_url: "http://localhost:8001"
+  prediction_base_url: "http://localhost:8003"
+
+scheduler:
+  prediction_interval: 60      # seconds - pull prediction requests
+
+state_machine:
+  transition_timeout: 10      # seconds before TURNING_ON/OFF → ERROR
+
+cache:
+  rooms_ttl: 3600             # seconds before re-fetching list of rooms
+  room_config_ttl: 3600        # seconds before re-fetching room config
+
+energy_mode:
+  critical_co2: 2000          # override energy saving if co2 exceeds this
+  critical_temperature: 35    # override energy saving if temp exceeds this
+  ac_energy_penalty: 2        # added to AC priority in ENERGY_SAVING mode
+
+data_freshness_ms: 60000      # reject sensor events older than this (ms)
+
+metric_limits:
+  temperature:
+    min: -10
+    max: 60
+  humidity:
+    min: 0
+    max: 100
+  co2:
+    min: 300
+    max: 5000
+  pm25:
+    min: 0
+    max: 500
