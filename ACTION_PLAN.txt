@@ -11,13 +11,13 @@ Phase 1 - Dashboard, Backend, and Telegram scope
 Phase 2 - Merge problem cleanup
 7. Inspect the branches and merge history again only for the files that are actually conflicting or overlapping. DONE
 8. Group merge problems by file and by subsystem so they can be fixed in a controlled order. DONE
-9. Resolve shared-file conflicts first, especially configuration, README, compose, and service contract files. NOT FINISHED
-10. Check that the merged branch still matches the intended contracts between sensor, adaptor, prediction, and decision. NOT FINISHED
-11. Re-run validation after each merge-related fix to avoid introducing new regressions. NOT FINISHED
+9. Resolve shared-file conflicts first, especially configuration, README, compose, and service contract files. DONE
+10. Check that the merged branch still matches the intended contracts between sensor, adaptor, prediction, and decision. DONE
+11. Re-run validation after each merge-related fix to avoid introducing new regressions. DONE
 
 Phase 3 - Final verification
-12. Review the final branch state against main. NOT FINISHED
-13. Confirm the key service paths still line up end to end. NOT FINISHED
+12. Review the final branch state against main. DONE
+13. Confirm the key service paths still line up end to end. DONE
 14. Summarize remaining risks and any follow-up work that should be scheduled later. DONE
 
 Additional completed work
@@ -26,6 +26,9 @@ Additional completed work
 - Start dashboard-service with Docker Compose and verify health endpoint response. DONE
 - Fix dashboard Internal Server Error by updating the TemplateResponse call signature in dashboard_service/main.py. DONE
 - Fix adaptor startup config loading fallback in main_adaptor.py to support both config.yaml and components/adaptor/config.yaml. DONE
+- Fix catalog heartbeat persistence so actuator state heartbeats write actual_state correctly. DONE
+- Fix catalog scheduler real ThingSpeak polling so data is fetched once per cycle (not once per device). DONE
+- Align decision MQTT bridge with airguard telemetry/command contracts and normalize telemetry into decision sensor events. DONE
 
 Notes
 - The dashboard/backend/telegram work is handled first.

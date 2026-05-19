@@ -67,15 +67,19 @@ class Storage:
 
     def heartbeat_device(self, device_id: str, update: dict) -> bool:
         dev = self.devices.get(device_id)
-        if dev is None:
+        if dev is None or update is None:
             return False
-        dev["status"] = "online" if update["value"] is not None else "offline"
+        value = update.get("value")
+        state = update.get("state")
+
+        status_value = value if value is not None else state
+        dev["status"] = "online" if status_value is not None else "offline"
         dev["last_seen"] = int(time.time())
         dev["modified"] = dev["last_seen"]
-        if dev["category"] == "sensor" and "value" in update:
-            dev["last_value"] = update["value"]
-        if dev["category"] == "actuator" and "state" in update:
-            dev["actual_state"] = update["value"]
+        if dev["category"] == "sensor" and value is not None:
+            dev["last_value"] = value
+        if dev["category"] == "actuator" and state is not None:
+            dev["actual_state"] = state
         self.save_devices()
         return True
 

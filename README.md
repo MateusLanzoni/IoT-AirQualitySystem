@@ -131,8 +131,9 @@ components/adaptor/config.yaml
 
 Important rules:
 
-- `field1` is used for `room_id`
-- `field2` to `field7` map to telemetry or actuator topics
+- `roomid` selects the channel by matching topics that contain `/{roomid}/`
+- history response keeps raw ThingSpeak fields (`created_at`, `field1`, `field2`, ...)
+- `field2` to `field7` usually map to telemetry or actuator topics
 - topic strings must match exactly
 - unsupported topics are dropped by egress
 
@@ -143,7 +144,7 @@ channels:
   - channel_id: 3319669
     write_api_key: "..."
     fields:
-      field1: "room_id"
+      field1: "airguard/room1"
       field2: "airguard/room1/telemetry/device/temp_1"
       field3: "airguard/room1/telemetry/device/humi_1"
       field4: "airguard/room1/telemetry/device/co2_1"

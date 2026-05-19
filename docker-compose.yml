@@ -43,6 +43,8 @@ services:
     command: ["python", "main_adaptor.py"]
     depends_on:
       - mosquitto
+    ports:
+      - "8000:8000"
     environment:
       - MQTT_BROKER=mosquitto
       - MQTT_USER=iot_admin
