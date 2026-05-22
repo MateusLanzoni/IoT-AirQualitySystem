@@ -30,8 +30,23 @@ class MQTTPublisher:
             logger.error(f"MQTT publish failed [{topic}]: {e}")
 
     def publish_command(self, room_id: str, device_id: str, cmd: dict):
-        topic = f"control/{room_id}/{device_id}/command"
-        self._publish(topic, cmd)
+        topic = f"airguard/{room_id}/command/device/{device_id}"
+        command = str(cmd.get("command", "")).upper()
+        action = "set_value"
+        if command == "TURN_ON":
+            action = "turn_on"
+        elif command == "TURN_OFF":
+            action = "turn_off"
+
+        payload = {
+            "device_id": device_id,
+            "action": action,
+        }
+        params = cmd.get("params")
+        if isinstance(params, dict) and params:
+            payload["params"] = params
+
+        self._publish(topic, payload)
 
     def publish_alert(self, room_id: str, alert_type: str, device_id: str, message: str):
         topic = f"alert/{room_id}"
@@ -81,9 +96,17 @@ class MQTTHandler:
         if rc == 0:
             logger.info("MQTT connected")
             cfg = self._config["mqtt"]
-            client.subscribe(cfg["topic_sensor"])
+            sensor_topics = cfg.get("topic_sensor", [])
+            if isinstance(sensor_topics, str):
+                sensor_topics = [sensor_topics]
+            if "airguard/+/telemetry/#" not in sensor_topics:
+                sensor_topics.append("airguard/+/telemetry/#")
+
+            for topic in sensor_topics:
+                client.subscribe(topic)
             client.subscribe(cfg["topic_device_status"])
-            logger.info(f"Subscribed: {cfg['topic_sensor']}, {cfg['topic_device_status']}")
+            logger.info(f"Subscribed sensor topics: {sensor_topics}")
+            logger.info(f"Subscribed status topic: {cfg['topic_device_status']}")
         else:
             logger.error(f"MQTT connect failed rc={rc}")
 
@@ -92,10 +115,67 @@ class MQTTHandler:
 
     def _on_message(self, client, userdata, msg):
         try:
+            topic = str(msg.topic)
             payload = json.loads(msg.payload.decode("utf-8"))
+
+            if topic.startswith("airguard/"):
+                normalized = self._normalize_airguard_telemetry(topic, payload)
+                if normalized is None:
+                    return
+                topic, payload = normalized
+
             asyncio.run_coroutine_threadsafe(
-                self._queue.put((msg.topic, payload)),
+                self._queue.put((topic, payload)),
                 self._loop,
             )
         except Exception as e:
             logger.error(f"Failed to parse MQTT message [{msg.topic}]: {e}")
+
+    def _normalize_airguard_telemetry(self, topic: str, payload: dict) -> Optional[tuple]:
+        if not isinstance(payload, dict):
+            return None
+
+        parts = topic.split("/")
+        if len(parts) < 5 or parts[2] != "telemetry":
+            return None
+
+        room_id = parts[1]
+        device_id = parts[4]
+        metric = self._metric_from_device_id(device_id)
+        value = payload.get("value")
+        if metric is None or value is None:
+            return None
+
+        ts = payload.get("timestamp", int(time.time() * 1000))
+        try:
+            ts = int(ts)
+        except Exception:
+            ts = int(time.time() * 1000)
+        if ts < 10_000_000_000:
+            ts *= 1000
+
+        normalized_topic = f"sensor/{room_id}/state"
+        normalized_payload = {
+            "room_id": room_id,
+            "timestamp": ts,
+            "metrics": {metric: value},
+            "meta": {
+                "device_id": device_id,
+                "source_topic": topic,
+            },
+        }
+        return normalized_topic, normalized_payload
+
+    @staticmethod
+    def _metric_from_device_id(device_id: str) -> Optional[str]:
+        prefix = device_id.split("_", 1)[0].lower()
+        mapping = {
+            "temp": "temperature",
+            "temperature": "temperature",
+            "humi": "humidity",
+            "humidity": "humidity",
+            "co2": "co2",
+            "pm25": "pm25",
+            "aqi": "aqi",
+        }
+        return mapping.get(prefix)

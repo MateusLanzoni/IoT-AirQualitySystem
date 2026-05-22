@@ -1,1 +1,33 @@
-__pycache__
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtualenvs
+venv/
+.venv/
+ENV/
+env/
+.Python
+
+# Local env / secrets
+.env
+*.env.local
+
+# Tooling caches
+.mypy_cache/
+.pytest_cache/
+.coverage
+.cache/
+pip-wheel-metadata/
+build/
+dist/
+*.egg-info/
+
+# Editor / OS
+.vscode/
+.DS_Store
+
+# Shell / python history
+.history
+.python_history
