@@ -18,7 +18,7 @@ from fastapi import FastAPI
 
 import state_store as ss
 from mqtt_handler import MQTTHandler, MQTTPublisher
-from processor import process_sensor_event, process_device_feedback, start as scheduler_start
+from processor import process_sensor_event, process_device_feedback, process_telemetry_event, start as scheduler_start
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -35,16 +35,13 @@ _event_queue: asyncio.Queue = None
 
 async def _dispatch_loop(queue: asyncio.Queue):
     """Async task: consume MQTT messages and dispatch to processor."""
-    sensor_prefix = "sensor/"
-    device_prefix = "device/"
-
     while True:
         topic, payload = await queue.get()
         try:
-            if topic.startswith(sensor_prefix):
-                await process_sensor_event(payload, config, _mqtt_pub)
-            elif topic.startswith(device_prefix):
-                await process_device_feedback(topic, payload)
+            if "/telemetry/" in topic:
+                await process_telemetry_event(topic, payload, config, _mqtt_pub)
+            elif "/state/" in topic or topic.startswith("device/"):
+                await process_device_feedback(topic, payload, _mqtt_pub, config)
         except Exception as e:
             logger.error(f"Error processing message [{topic}]: {e}")
         finally:

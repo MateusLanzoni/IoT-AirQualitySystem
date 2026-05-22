@@ -37,25 +37,16 @@ code != 0 → error, msg shows the error message.
 **Topic:**
 
 ```text
-sensor/{room_id}/state
+airguard/{room_id}/telemetry/{device_type}/{device_id}
 ```
 
 **Payload:**
 
 ```json
 {
-  "room_id": "room1",
-  "timestamp": 1712577600123,
-  "metrics": {
-    "temperature": 28.5,
-    "humidity": 60,
-    "co2": 900,
-    "pm25": 35
-  },
-  "meta": {
-    "temperature_ts": 1712577599000,
-    "co2_ts": 1712577598000
-  }
+  "device_id": "temp_1",
+  "value": 28.5,
+  "timestamp": 1234567890
 }
 ```
 
@@ -66,18 +57,16 @@ sensor/{room_id}/state
 **Topic:**
 
 ```text
-device/{room_id}/{device_id}/status
+airguard/{room_id}/state/device/{device_id}
 ```
 
 **Payload:**
 
 ```json
 {
-  "device_id": "ac_1",
-  "device_name": "ac-1",
+  "device_id": "temp_1",
   "state": "ON",
-  "result": "SUCCESS",
-  "timestamp": 1712577600123
+  "timestamp": 1234567890
 }
 ```
 

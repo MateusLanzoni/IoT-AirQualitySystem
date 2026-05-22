@@ -6,8 +6,8 @@ mqtt:
   broker: "localhost"
   port: 1883
   client_id: "decision_service"
-  topic_sensor: "sensor/+/state"
-  topic_device_status: "device/+/+/status"
+  topic_sensor: "airguard/+/telemetry/device/+"
+  topic_device_status: "airguard/+/state/device/+"
   keepalive: 60
 
 services:
@@ -23,11 +23,16 @@ state_machine:
 cache:
   rooms_ttl: 3600             # seconds before re-fetching list of rooms
   room_config_ttl: 3600        # seconds before re-fetching room config
+  devices_ttl: 3600            # seconds before re-fetching device catalog
 
 energy_mode:
   critical_co2: 2000          # override energy saving if co2 exceeds this
   critical_temperature: 35    # override energy saving if temp exceeds this
   ac_energy_penalty: 2        # added to AC priority in ENERGY_SAVING mode
+
+command_confirmation:
+  confirm_window_s: 60        # feedback timestamp must be within this window after command (seconds)
+  timeout_s: 30               # alert if no confirmation received within this many seconds
 
 data_freshness_ms: 60000      # reject sensor events older than this (ms)
 
