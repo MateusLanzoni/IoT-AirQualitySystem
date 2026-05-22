@@ -30,6 +30,10 @@ energy_mode:
   critical_temperature: 35    # override energy saving if temp exceeds this
   ac_energy_penalty: 2        # added to AC priority in ENERGY_SAVING mode
 
+command_confirmation:
+  confirm_window_s: 60        # feedback timestamp must be within this window after command (seconds)
+  timeout_s: 30               # alert if no confirmation received within this many seconds
+
 data_freshness_ms: 60000      # reject sensor events older than this (ms)
 
 metric_limits:

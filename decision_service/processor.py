@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _filter_abnormal(metrics: Dict[str, float], limits: dict) -> Dict[str, float]:
-    """Remove metric values outside configured min/max bounds."""
+def _filter_abnormal(metrics: Dict[str, float], limits: dict, room_id: str = "", mqtt_pub=None) -> Dict[str, float]:
+    """Remove metric values outside configured min/max bounds and alert on violations."""
     clean = {}
     for key, val in metrics.items():
         lim = limits.get(key)
@@ -48,7 +48,10 @@ def _filter_abnormal(metrics: Dict[str, float], limits: dict) -> Dict[str, float
         if lim["min"] <= val <= lim["max"]:
             clean[key] = val
         else:
-            logger.warning(f"Metric {key}={val} out of range [{lim['min']}, {lim['max']}] — discarded")
+            msg = f"Metric {key}={val} out of range [{lim['min']}, {lim['max']}] — discarded"
+            logger.warning(msg)
+            if mqtt_pub and room_id:
+                mqtt_pub.publish_alert(room_id, "abnormal_metric", key, msg)
     return clean
 
 
@@ -129,6 +132,22 @@ async def _fetch_room_config(room_id: str, catalog_url: str) -> Optional[dict]:
     return None
 
 
+# ── Command timeout sweep ─────────────────────────────────────────────────────
+
+def _check_command_timeouts(mqtt_pub, config: dict):
+    """Alert and clear pending commands that exceeded the confirmation timeout."""
+    timeout_s = config.get("command_confirmation", {}).get("timeout_s", 30)
+    now = time.time()
+    store = ss.get()
+    for room_id, device_id, pending in store.get_all_pending_commands():
+        if now - pending["command_timestamp"] > timeout_s:
+            msg = (f"Command to set {device_id} → {pending['expected_state']} "
+                   f"not confirmed within {timeout_s}s")
+            logger.warning(msg)
+            mqtt_pub.publish_alert(room_id, "command_timeout", device_id, msg)
+            store.clear_pending_command(room_id, device_id)
+
+
 # ── Prediction ──────────────────────────────────────────────────────
 async def prediction_task(config: dict, mqtt_pub):
     interval = config["scheduler"]["prediction_interval"]
@@ -182,10 +201,15 @@ async def prediction_task(config: dict, mqtt_pub):
                     if cmd:
                         commands.append(cmd)
 
-                # 9. Publish commands
+                # 9. Publish commands + record as pending for confirmation
                 for cmd in commands:
                     mqtt_pub.publish_command(room_id, cmd["device_id"], cmd)
                     logger.info(f"Command published: room={room_id} device={cmd['device_id']} cmd={cmd['command']}")
+                    ss.get().set_pending_command(
+                        room_id, cmd["device_id"],
+                        cmd.get("state", cmd.get("command", "")),
+                        time.time(),
+                    )
 
                 # 10. Publish decision log
                 mqtt_pub.publish_decision_log(
@@ -199,6 +223,7 @@ async def prediction_task(config: dict, mqtt_pub):
             traceback.print_exc()
             logger.warning(f"prediction task failed: {e}")
 
+        _check_command_timeouts(mqtt_pub, config)
         logger.debug("decision cycle complete")
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 
@@ -215,7 +240,7 @@ async def process_sensor_event(event: dict, config: dict, mqtt_pub) -> None:
         return
 
     # 2. Filter abnormal values
-    metrics = _filter_abnormal(metrics, config.get("metric_limits", {}))
+    metrics = _filter_abnormal(metrics, config.get("metric_limits", {}), room_id, mqtt_pub)
     if not metrics:
         logger.warning(f"No valid metrics for room {room_id} after filtering")
         return
@@ -266,11 +291,12 @@ async def process_telemetry_event(topic: str, payload: dict, config: dict, mqtt_
     await process_sensor_event(event, config, mqtt_pub)
 
 
-async def process_device_feedback(topic: str, payload: dict) -> None:
+async def process_device_feedback(topic: str, payload: dict, mqtt_pub=None, config: dict = None) -> None:
     """Handle device status messages.
 
     Supports both formats:
-      - airguard/{room_id}/state/device/{device_id}
+      - New: airguard/{room_id}/state/device/{device_id}
+        Payload: {"device_id": str, "state": str, "timestamp": int (seconds)}
     """
     parts = topic.split("/")
     if topic.startswith("airguard/") and len(parts) >= 5:
@@ -281,9 +307,33 @@ async def process_device_feedback(topic: str, payload: dict) -> None:
         device_id = parts[2]
     else:
         return
-    result = payload.get("result", "")
+
     reported_state = payload.get("state", "")
+    result = payload.get("result", "ok")  # new format has no "result" field; treat as ok; Compatible with legacy code, currently has no practical use
     sm.handle_feedback(room_id, device_id, result, reported_state)
+
+    # Command → feedback verification
+    if mqtt_pub is None or config is None:
+        return
+    pending = ss.get().get_pending_command(room_id, device_id)
+    if pending is None:
+        return
+
+    feedback_ts = payload.get("timestamp", 0)          # seconds
+    command_ts = pending["command_timestamp"]           # time.time() float (seconds)
+    expected_state = pending["expected_state"]
+    confirm_window_s = (config.get("command_confirmation", {})
+                        .get("confirm_window_s", 60))
+
+    if reported_state == expected_state and 0 <= feedback_ts - command_ts <= confirm_window_s:
+        logger.info(f"Command confirmed: room={room_id} device={device_id} state={reported_state}")
+        ss.get().clear_pending_command(room_id, device_id)
+    elif time.time() - command_ts > confirm_window_s:
+        msg = (f"Command to set {device_id} → {expected_state} expired: "
+               f"reported state={reported_state}")
+        logger.warning(msg)
+        mqtt_pub.publish_alert(room_id, "command_unconfirmed", device_id, msg)
+        ss.get().clear_pending_command(room_id, device_id)
 
     
 # ── Entry point ───────────────────────────────────────────────────────────────

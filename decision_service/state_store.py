@@ -28,6 +28,9 @@ class StateStore:
         # devices_cache: {"devices": list, "last_fetch": float}
         self._devices_cache: Optional[dict] = None
 
+        # pending_commands[room_id][device_id] = {"expected_state": str, "command_timestamp": float}
+        self._pending_commands: Dict[str, Dict[str, dict]] = {}
+
     # ── Device state ──────────────────────────────────────────────────────────
 
     def get_state(self, room_id: str, device_id: str) -> str:
@@ -109,6 +112,32 @@ class StateStore:
     def set_devices(self, devices: list):
         with self._lock:
             self._devices_cache = {"devices": devices, "last_fetch": time.time()}
+
+    # ── Pending commands (command → feedback verification) ─────────────────────
+
+    def set_pending_command(self, room_id: str, device_id: str, expected_state: str, command_timestamp: float):
+        with self._lock:
+            self._pending_commands.setdefault(room_id, {})[device_id] = {
+                "expected_state": expected_state,
+                "command_timestamp": command_timestamp,
+            }
+
+    def get_pending_command(self, room_id: str, device_id: str) -> Optional[dict]:
+        with self._lock:
+            return self._pending_commands.get(room_id, {}).get(device_id)
+
+    def clear_pending_command(self, room_id: str, device_id: str):
+        with self._lock:
+            self._pending_commands.get(room_id, {}).pop(device_id, None)
+
+    def get_all_pending_commands(self) -> list:
+        """Return list of (room_id, device_id, pending_dict) for all pending commands."""
+        with self._lock:
+            return [
+                (room_id, device_id, dict(pending))
+                for room_id, devices in self._pending_commands.items()
+                for device_id, pending in devices.items()
+            ]
 
  # ── Rooms cache ──────────────────────────────────────────────────────────
     def get_rooms(self) -> Optional[dict]:

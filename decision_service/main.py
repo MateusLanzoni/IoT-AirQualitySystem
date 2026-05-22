@@ -41,7 +41,7 @@ async def _dispatch_loop(queue: asyncio.Queue):
             if "/telemetry/" in topic:
                 await process_telemetry_event(topic, payload, config, _mqtt_pub)
             elif "/state/" in topic or topic.startswith("device/"):
-                await process_device_feedback(topic, payload)
+                await process_device_feedback(topic, payload, _mqtt_pub, config)
         except Exception as e:
             logger.error(f"Error processing message [{topic}]: {e}")
         finally:
