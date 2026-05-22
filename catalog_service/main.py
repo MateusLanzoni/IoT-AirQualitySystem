@@ -9,6 +9,7 @@ Startup:
 """
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -25,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 def load_config(path: str = "config.yaml") -> dict:
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        cfg = yaml.safe_load(f)
+    if os.getenv("SERVER_HOST"):
+        cfg["server"]["host"] = os.getenv("SERVER_HOST")
+    return cfg
 
 
 config = load_config()

@@ -1,5 +1,9 @@
 # Quickstart
 ```bash
+# method1:
+  docker compose up --build
+
+# method2:
  # Catalog Service
   cd catalog_service
   pip install -r requirements.txt
