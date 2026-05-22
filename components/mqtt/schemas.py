@@ -10,9 +10,13 @@ class ActionEnum(str, Enum):
     """
     Allowed actions from incoming commands.
     """
+    # Lowercase format (internal)
     TURN_ON = "turn_on"
     TURN_OFF = "turn_off"
     SET_VALUE = "set_value"
+    # Uppercase format (external compatibility)
+    TURN_ON_UPPER = "TURN_ON"
+    TURN_OFF_UPPER = "TURN_OFF"
 
 class TelemetryMessage(BaseModel):
     """

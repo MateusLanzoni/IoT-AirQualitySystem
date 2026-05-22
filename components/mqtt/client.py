@@ -87,7 +87,7 @@ class MQTTGateway:
         """Listen to incoming commands and routes them to event bus."""
 
         # Subscribe to all commands targeting this device
-        command_topic_pattern = f"{TOPIC_PREFIX}/command/#"
+        command_topic_pattern = "control/#"
         await self.client.subscribe(command_topic_pattern)
 
         # Listening loop

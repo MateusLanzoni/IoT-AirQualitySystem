@@ -51,20 +51,18 @@ async def get_devices_from_catalog(url: str):
         data = response.json()
         return data.get("data", [])
 
-# Test 
-async def test_bus_monitor(event):
-    print(f"\n [Bus Monitor] Event Fired: {event.event_type} with data: {event.data}\n")
-
-
 # Setup actuators from catalog
 def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
     actuators = []
     for item in config_list:
+        device_class = item.get("device_class") or item.get("type")
+        if not device_class:
+            raise KeyError(f"Missing device class for actuator config: {item}")
+
         desc = ActuatorEntityDescription(
-            
             key = item["key"],
             name=item["name"],
-            device_class=ActuatorDeviceClass(item["device_class"])
+            device_class=ActuatorDeviceClass(device_class)
         )
         driver = ActuatorDriver()
         actuators.append(AirguardActuator(description=desc, driver=driver, bus=bus))
@@ -108,13 +106,11 @@ async def main():
 
     _LOGGER.info(f"Initialized {len(all_sensors)} sensors with Event Bus")
     _LOGGER.info(f"Initialized {len(all_actuators)} actuators with Event Bus")
-    #print(f"Initialized {len(all_sensors)} sensors from config.")
 
     while True:
         # Trigger sensors to read hardware
         for sensor in all_sensors:
             await sensor.async_update()   # Update each sensor to fetch the latest value from the simulator
-            #print(f"{sensor.name}: {sensor.state} {sensor.native_unit_of_measurement}")
 
         # Trigger actuators to update
         for actuator in all_actuators:
