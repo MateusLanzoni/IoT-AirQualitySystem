@@ -22,6 +22,12 @@ class StateStore:
         # config_cache[room_id] = {"config": dict, "last_fetch": float}
         self._config_cache: Dict[str, dict] = {}
 
+        # raw_readings[room_id][device_id] = {"value": float, "device_class": str, "timestamp": int}
+        self._raw_readings: Dict[str, Dict[str, dict]] = {}
+
+        # devices_cache: {"devices": list, "last_fetch": float}
+        self._devices_cache: Optional[dict] = None
+
     # ── Device state ──────────────────────────────────────────────────────────
 
     def get_state(self, room_id: str, device_id: str) -> str:
@@ -71,6 +77,38 @@ class StateStore:
     def set_config(self, room_id: str, config: dict):
         with self._lock:
             self._config_cache[room_id] = {"config": config, "last_fetch": time.time()}
+
+    # ── Raw sensor readings (per device, for aggregation) ─────────────────────
+
+    def update_raw_reading(self, room_id: str, device_id: str, device_class: str, value: float, timestamp: int):
+        with self._lock:
+            self._raw_readings.setdefault(room_id, {})[device_id] = {
+                "value": value,
+                "device_class": device_class,
+                "timestamp": timestamp,
+            }
+
+    def get_aggregated_metrics(self, room_id: str) -> Dict[str, float]:
+        """Return per-device_class average across all devices in the room."""
+        with self._lock:
+            readings = self._raw_readings.get(room_id, {})
+            groups: Dict[str, list] = {}
+            for r in readings.values():
+                groups.setdefault(r["device_class"], []).append(r["value"])
+            return {dc: sum(vals) / len(vals) for dc, vals in groups.items()}
+
+    # ── Devices catalog cache ──────────────────────────────────────────────────
+
+    def get_devices(self) -> Optional[list]:
+        ttl = config.get("cache", {}).get("devices_ttl", 3600)
+        with self._lock:
+            if self._devices_cache and time.time() - self._devices_cache["last_fetch"] < ttl:
+                return self._devices_cache["devices"]
+        return None
+
+    def set_devices(self, devices: list):
+        with self._lock:
+            self._devices_cache = {"devices": devices, "last_fetch": time.time()}
 
  # ── Rooms cache ──────────────────────────────────────────────────────────
     def get_rooms(self) -> Optional[dict]:

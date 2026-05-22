@@ -89,6 +89,26 @@ async def _fetch_all_rooms(catalog_url: str) -> list:
     return []
 
 
+async def _fetch_devices(catalog_url: str) -> list:
+    """Fetch all devices from catalog GET /devices, cached in-memory."""
+    store = ss.get()
+    cached = store.get_devices()
+    if cached is not None:
+        return cached
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{catalog_url}/devices")
+            if resp.status_code == 200:
+                body = resp.json()
+                if body.get("code") == 0:
+                    devices = body.get("data", [])
+                    store.set_devices(devices)
+                    return devices
+    except Exception as e:
+        logger.error(f"Failed to fetch devices from catalog: {e}")
+    return []
+
+
 async def _fetch_room_config(room_id: str, catalog_url: str) -> Optional[dict]:
     store = ss.get()
     cached = store.get_config(room_id)
@@ -205,13 +225,62 @@ async def process_sensor_event(event: dict, config: dict, mqtt_pub) -> None:
     logger.debug(f"Metrics stored for room {room_id}: {metrics}")
 
 
-async def process_device_feedback(topic: str, payload: dict) -> None:
-    """Handle device/{room_id}/{device_id}/status messages."""
+async def process_telemetry_event(topic: str, payload: dict, config: dict, mqtt_pub) -> None:
+    """Handle airguard/{room_id}/telemetry/{device_type}/{device_id} messages."""
     parts = topic.split("/")
-    if len(parts) < 4:
+    if len(parts) < 5:
+        logger.warning(f"Unexpected telemetry topic format: {topic}")
         return
+
     room_id = parts[1]
-    device_id = parts[2]
+    device_id = payload.get("device_id", parts[4])
+    value = payload.get("value")
+    timestamp_s = payload.get("timestamp", 0)
+    timestamp_ms = timestamp_s * 1000
+
+    if value is None:
+        logger.warning(f"No value in telemetry payload on topic {topic}")
+        return
+
+    # Look up device_class from catalog cache
+    catalog_url = config["services"]["catalog_base_url"]
+    devices = await _fetch_devices(catalog_url)
+    device_info = next((d for d in devices if d["key"] == device_id), None)
+    if device_info is None:
+        logger.warning(f"Device {device_id} not found in catalog — skipping")
+        return
+
+    device_class = device_info["device_class"]
+
+    # Store raw reading and recompute aggregated metrics for this room
+    store = ss.get()
+    store.update_raw_reading(room_id, device_id, device_class, float(value), timestamp_ms)
+    metrics = store.get_aggregated_metrics(room_id)
+
+    # Feed aggregated metrics into the existing pipeline
+    event = {
+        "room_id": room_id,
+        "timestamp": timestamp_ms,
+        "metrics": metrics,
+    }
+    await process_sensor_event(event, config, mqtt_pub)
+
+
+async def process_device_feedback(topic: str, payload: dict) -> None:
+    """Handle device status messages.
+
+    Supports both formats:
+      - airguard/{room_id}/state/device/{device_id}
+    """
+    parts = topic.split("/")
+    if topic.startswith("airguard/") and len(parts) >= 5:
+        room_id = parts[1]
+        device_id = parts[4]
+    elif len(parts) >= 4:
+        room_id = parts[1]
+        device_id = parts[2]
+    else:
+        return
     result = payload.get("result", "")
     reported_state = payload.get("state", "")
     sm.handle_feedback(room_id, device_id, result, reported_state)
