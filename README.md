@@ -42,6 +42,10 @@ The adaptor API exposes historical telemetry from ThingSpeak:
 - `GET /health`
 - `GET /api/v1/history?roomid=room1&starttime=...&endtime=...`
 
+The dashboard also exposes explicit ThingSpeak room discovery:
+
+- `GET /api/thingspeak-rooms`
+
 This branch treats the API as the key integration point for reading historical room data.
 
 ## API Overview
@@ -192,6 +196,11 @@ Key endpoints:
 
 Decision Service receives sensor events and publishes control commands.
 It listens to MQTT topics for sensor state and actuator status.
+
+### Telegram Notifier
+
+The Telegram notifier listens only to alert topics on MQTT and forwards them to Telegram.
+It requires `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` to send real messages.
 
 ## Quick Start
 

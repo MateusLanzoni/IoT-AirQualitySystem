@@ -275,6 +275,19 @@
       font-weight: 800;
     }
 
+    .room-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .room-chip .meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .footer-note {
       margin-top: 16px;
       color: var(--muted);
@@ -293,10 +306,6 @@
       <div class="hero-card">
         <span class="eyebrow">AirGuard Dashboard</span>
         <h1>Indoor air quality, live service state, and control feedback in one view.</h1>
-        <p class="subtitle">
-          This dashboard is a new FastAPI-powered view over the existing catalog, prediction, decision, and adaptor services.
-          It is intentionally lightweight so it can be opened quickly while the backend contracts are still evolving.
-        </p>
 
         <div class="hero-metrics">
           <div class="metric">
@@ -433,6 +442,37 @@
         <div class="footer-note">
           Dashboard backend URL: {{ service_urls.catalog }} | {{ service_urls.prediction }} | {{ service_urls.decision }} | {{ service_urls.adaptor }}
         </div>
+      </div>
+    </section>
+
+    <section class="glass-card">
+      <div class="card-title">
+        <span>ThingSpeak rooms</span>
+        <span class="pill">/api/thingspeak-rooms</span>
+      </div>
+      <div class="list">
+        {% if thingspeak_rooms %}
+          {% for item in thingspeak_rooms %}
+          <div class="list-row">
+            <div>
+              <div class="strong room-chip">
+                <span>{{ item.room_id }}</span>
+                <span class="tag">{{ item.kind }}</span>
+              </div>
+              <div class="muted">Channel {{ item.channel_id }}{% if item.source_topic %} · {{ item.source_topic }}{% endif %}</div>
+            </div>
+            <div class="tag">{{ item.fields|length }} fields</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="list-row">
+            <div>
+              <div class="strong">No ThingSpeak rooms discovered</div>
+              <div class="muted">Mount the adaptor config or set ADAPTOR_CONFIG_PATH.</div>
+            </div>
+            <div class="tag">offline</div>
+          </div>
+        {% endif %}
       </div>
     </section>
 

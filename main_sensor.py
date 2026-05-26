@@ -1,5 +1,7 @@
 import logging
 import asyncio
+import os
+import sys
 import httpx
 import yaml
 
@@ -79,7 +81,7 @@ async def main():
     sensor_params_map = {s["key"]: s for s in sensor_config_data.get("sensors", [])}
     
     # Load configuration from YAML file ,later catalog from outside
-    catalog_url = "http://host.docker.internal:8001"  # URL of the catalog service
+    catalog_url = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001")
     all_devices = await get_devices_from_catalog(catalog_url)
 
     # Separate sensors and actuators based on device_class
@@ -124,4 +126,6 @@ async def main():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())

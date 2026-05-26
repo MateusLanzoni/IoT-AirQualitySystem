@@ -1,11 +1,12 @@
 import httpx
 import logging
+import os
 import socket
 
 logger = logging.getLogger(__name__)
 
-# Base URL for the Catalog Service. Use Docker compose service name 'catalog_service'
-CATALOG_BASE_URL = "http://host.docker.internal:8001"
+# Base URL for the Catalog Service. Defaults to the local test host but can be overridden for Docker.
+CATALOG_BASE_URL = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001")
 
 def get_local_ip():
     """Retrieve the container's routable IP address."""

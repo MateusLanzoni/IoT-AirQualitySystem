@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
+import yaml
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -22,6 +25,10 @@ DEFAULT_SERVICE_URLS = {
 }
 
 DEFAULT_ROOM_ID = os.getenv("DEFAULT_ROOM_ID", "room1")
+DEFAULT_ADAPTOR_CONFIG_PATH = os.getenv(
+    "ADAPTOR_CONFIG_PATH",
+    os.path.join(os.path.dirname(BASE_DIR), "components", "adaptor", "config.yaml"),
+)
 
 
 @asynccontextmanager
@@ -49,12 +56,57 @@ async def _fetch_json(url: str) -> dict[str, Any] | list[Any] | None:
         return None
 
 
+def _normalize_room_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = re.search(r"room[_-]?(\d+)", value)
+    if match:
+        return f"room{match.group(1)}"
+    return value
+
+
+def _load_thingspeak_rooms() -> list[dict[str, Any]]:
+    config_path = Path(DEFAULT_ADAPTOR_CONFIG_PATH)
+    if not config_path.is_file():
+        return []
+
+    try:
+        with config_path.open("r", encoding="utf-8") as handle:
+            config = yaml.safe_load(handle) or {}
+    except Exception:
+        return []
+
+    discovery: list[dict[str, Any]] = []
+    for channel in config.get("channels", []) or []:
+        fields = channel.get("fields", {}) or {}
+        field_values = [value for value in fields.values() if isinstance(value, str)]
+        source_topic = next((value for value in field_values if value.startswith("airguard/")), None)
+        room_id = _normalize_room_id(source_topic)
+        kind = "command" if any("/command/" in value for value in field_values) else "telemetry"
+        discovery.append(
+            {
+                "room_id": room_id or "unknown",
+                "kind": kind,
+                "channel_id": channel.get("channel_id"),
+                "source_topic": source_topic,
+                "fields": [
+                    {"field": name, "topic": topic}
+                    for name, topic in fields.items()
+                    if isinstance(topic, str)
+                ],
+            }
+        )
+
+    return discovery
+
+
 async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     catalog = await _fetch_json(f"{DEFAULT_SERVICE_URLS['catalog']}/room/{room_id}")
     rooms = await _fetch_json(f"{DEFAULT_SERVICE_URLS['catalog']}/rooms")
     services = await _fetch_json(f"{DEFAULT_SERVICE_URLS['catalog']}/services")
     prediction = await _fetch_json(f"{DEFAULT_SERVICE_URLS['prediction']}/prediction/{room_id}")
     decision = await _fetch_json(f"{DEFAULT_SERVICE_URLS['decision']}/status")
+    thingspeak_rooms = _load_thingspeak_rooms()
 
     end = datetime.now(timezone.utc)
     start = end - timedelta(hours=1)
@@ -85,6 +137,7 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
         "room": room_data,
         "rooms": rooms.get("data", []) if isinstance(rooms, dict) else [],
         "services": services_data,
+        "thingspeak_rooms": thingspeak_rooms,
         "prediction": prediction_data,
         "decision_states": decision_data,
         "history": telemetry,
@@ -101,6 +154,12 @@ def health():
 @app.get("/api/snapshot")
 async def snapshot(room_id: str = DEFAULT_ROOM_ID):
     return JSONResponse(await _collect_snapshot(room_id))
+
+
+@app.get("/api/thingspeak-rooms")
+async def thingspeak_rooms():
+    rooms = _load_thingspeak_rooms()
+    return JSONResponse({"count": len(rooms), "rooms": rooms})
 
 
 @app.get("/", response_class=HTMLResponse)

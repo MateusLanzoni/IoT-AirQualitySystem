@@ -66,7 +66,27 @@ services:
       - PREDICTION_SERVICE_URL=http://host.docker.internal:8003
       - DECISION_SERVICE_URL=http://host.docker.internal:8002
       - ADAPTOR_SERVICE_URL=http://host.docker.internal:8000
+      - ADAPTOR_CONFIG_PATH=/app/adaptor_config.yaml
       - DEFAULT_ROOM_ID=room1
+    volumes:
+      - ./components/adaptor/config.yaml:/app/adaptor_config.yaml:ro
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  telegram-notifier:
+    build:
+      context: ./telegram_notifier
+    container_name: airguard-telegram
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_ALERT_TOPIC=alert/#
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - TELEGRAM_BOT_NAME=AirGuard Alerts
     networks:
       - airguard-network
     restart: unless-stopped
