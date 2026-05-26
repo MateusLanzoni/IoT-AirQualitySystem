@@ -5,11 +5,12 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY requirements.txt .
+COPY dashboard_service/requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
-COPY templates ./templates
+COPY env_loader.py .
+COPY dashboard_service/main.py main.py
+COPY dashboard_service/templates ./templates
 
 EXPOSE 8501
 

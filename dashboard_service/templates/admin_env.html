@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirGuard Admin Env</title>
+  <style>
+    :root {
+      --bg: #08111b;
+      --panel: rgba(12, 20, 32, 0.82);
+      --panel-2: rgba(18, 28, 44, 0.88);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --line: rgba(149, 180, 216, 0.18);
+      --accent: #49d6a7;
+      --accent-2: #79a7ff;
+      --warn: #ffbf69;
+      --bad: #ff7d7d;
+      --good: #67e8a4;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 80% 10%, rgba(73, 214, 167, 0.13), transparent 28%),
+        linear-gradient(180deg, #08111b 0%, #09131f 52%, #050b12 100%);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .hero {
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid rgba(103, 232, 164, 0.24);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(73, 214, 167, 0.07);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 16px 0 10px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .pill, .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+    }
+
+    .pill {
+      padding: 6px 10px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .tag {
+      padding: 4px 10px;
+      color: #b9d0ff;
+      background: rgba(121, 167, 255, 0.12);
+      border-color: rgba(121, 167, 255, 0.18);
+    }
+
+    .card {
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+      font-weight: 700;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(3, 8, 14, 0.55);
+      color: var(--text);
+      outline: none;
+    }
+
+    .field input:focus { border-color: rgba(121, 167, 255, 0.5); }
+
+    .field .helper {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid rgba(121, 167, 255, 0.18);
+      background: rgba(121, 167, 255, 0.14);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 11px 16px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .button.secondary { background: rgba(255, 255, 255, 0.04); }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status.ok { color: var(--good); }
+    .status.bad { color: var(--bad); }
+
+    @media (max-width: 900px) {
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <span class="eyebrow">Admin Config</span>
+      <h1>Update .env values from the dashboard.</h1>
+      <p class="subtitle">Use the admin password to change runtime credentials and connection values, then restart the affected services so they pick up the new environment.</p>
+      <div class="toolbar">
+        <span class="pill">.env file: {{ dotenv_path }}</span>
+        <a class="pill" href="/">Back to dashboard</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Protected settings</span>
+        <span class="tag">password: paassword</span>
+      </div>
+      <div class="field">
+        <label for="admin-password">Admin password</label>
+        <input id="admin-password" type="password" placeholder="Enter admin password" autocomplete="current-password">
+        <div class="helper">Required to save any changes.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Edit env values</span>
+        <span class="tag">blank = keep current</span>
+      </div>
+
+      <div class="form-grid">
+        {% for field in admin_fields %}
+        <div class="field">
+          <label for="{{ field.key }}">{{ field.label }}</label>
+          <input
+            id="{{ field.key }}"
+            data-env-key="{{ field.key }}"
+            type="{{ 'password' if field.kind == 'password' else 'text' }}"
+            value="{{ field.value }}"
+            {% if field.kind == 'password' %}placeholder="Hidden value - type a new one to replace it"{% endif %}
+            autocomplete="off"
+          >
+          <div class="helper">{{ field.key }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="actions">
+        <button class="button" type="button" onclick="saveEnv()">Save .env</button>
+        <button class="button secondary" type="button" onclick="loadCurrent()">Refresh view</button>
+      </div>
+
+      <div id="status" class="status"></div>
+    </section>
+  </div>
+
+  <script>
+    function setStatus(message, kind) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = 'status ' + (kind || '');
+    }
+
+    async function saveEnv() {
+      const password = document.getElementById('admin-password').value;
+      const values = {};
+      document.querySelectorAll('[data-env-key]').forEach((input) => {
+        values[input.dataset.envKey] = input.value;
+      });
+
+      try {
+        const response = await fetch('/admin/env', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({password, values}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || 'Unable to save env');
+        }
+        setStatus('Saved: ' + data.updated.join(', ') + '. Restart services to apply process-level changes.', 'ok');
+      } catch (error) {
+        setStatus(error.message, 'bad');
+      }
+    }
+
+    function loadCurrent() {
+      window.location.reload();
+    }
+  </script>
+</body>
+</html>

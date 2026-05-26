@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -10,25 +11,71 @@ from typing import Any
 import httpx
 import yaml
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from env_loader import load_env_file, parse_env_file, write_env_file
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-DEFAULT_SERVICE_URLS = {
-    "catalog": os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001"),
-    "prediction": os.getenv("PREDICTION_SERVICE_URL", "http://localhost:8003"),
-    "decision": os.getenv("DECISION_SERVICE_URL", "http://localhost:8002"),
-    "adaptor": os.getenv("ADAPTOR_SERVICE_URL", "http://localhost:8000"),
-}
-
-DEFAULT_ROOM_ID = os.getenv("DEFAULT_ROOM_ID", "room1")
-DEFAULT_ADAPTOR_CONFIG_PATH = os.getenv(
-    "ADAPTOR_CONFIG_PATH",
-    os.path.join(os.path.dirname(BASE_DIR), "components", "adaptor", "config.yaml"),
+ROOT_DOTENV_PATH = Path(
+    os.getenv("ROOT_ENV_PATH", str(ROOT_DIR / ".env"))
 )
+load_env_file(ROOT_DOTENV_PATH, overwrite=True)
+
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "paassword")
+
+ADMIN_ENV_FIELDS = [
+    {"key": "MQTT_USER", "label": "MQTT user", "kind": "text"},
+    {"key": "MQTT_PASSWORD", "label": "MQTT password", "kind": "password"},
+    {"key": "MQTT_PORT", "label": "MQTT port", "kind": "text"},
+    {"key": "MQTT_BROKER", "label": "MQTT broker", "kind": "text"},
+    {"key": "THINGSPEAK_WRITE_API_KEY", "label": "ThingSpeak write key", "kind": "password"},
+    {"key": "THINGSPEAK_READ_API_KEY", "label": "ThingSpeak read key", "kind": "password"},
+    {"key": "THINGSPEAK_COMMAND_WRITE_API_KEY", "label": "ThingSpeak command write key", "kind": "password"},
+    {"key": "TELEGRAM_BOT_TOKEN", "label": "Telegram bot token", "kind": "password"},
+    {"key": "TELEGRAM_CHAT_ID", "label": "Telegram chat id", "kind": "text"},
+    {"key": "TELEGRAM_BOT_NAME", "label": "Telegram bot name", "kind": "text"},
+    {"key": "ADMIN_PASSWORD", "label": "Admin password", "kind": "password"},
+    {"key": "CATALOG_SERVICE_URL", "label": "Catalog service URL", "kind": "text"},
+    {"key": "PREDICTION_SERVICE_URL", "label": "Prediction service URL", "kind": "text"},
+    {"key": "DECISION_SERVICE_URL", "label": "Decision service URL", "kind": "text"},
+    {"key": "ADAPTOR_SERVICE_URL", "label": "Adaptor service URL", "kind": "text"},
+    {"key": "DEFAULT_ROOM_ID", "label": "Default room id", "kind": "text"},
+]
+
+
+class AdminEnvUpdate(BaseModel):
+    password: str = Field(min_length=1)
+    values: dict[str, str | None]
+
+def get_service_urls() -> dict[str, str]:
+    return {
+        "catalog": os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001"),
+        "prediction": os.getenv("PREDICTION_SERVICE_URL", "http://localhost:8003"),
+        "decision": os.getenv("DECISION_SERVICE_URL", "http://localhost:8002"),
+        "adaptor": os.getenv("ADAPTOR_SERVICE_URL", "http://localhost:8000"),
+    }
+
+
+def get_default_room_id() -> str:
+    return os.getenv("DEFAULT_ROOM_ID", "room1")
+
+
+def get_adaptor_config_path() -> Path:
+    return Path(
+        os.getenv(
+            "ADAPTOR_CONFIG_PATH",
+            os.path.join(os.path.dirname(BASE_DIR), "components", "adaptor", "config.yaml"),
+        )
+    )
 
 
 @asynccontextmanager
@@ -56,6 +103,22 @@ async def _fetch_json(url: str) -> dict[str, Any] | list[Any] | None:
         return None
 
 
+def _reload_runtime_env() -> None:
+    load_env_file(ROOT_DOTENV_PATH, overwrite=True)
+
+
+def _admin_context() -> dict[str, Any]:
+    _reload_runtime_env()
+    env_values = parse_env_file(ROOT_DOTENV_PATH)
+    return {
+        "admin_fields": [
+            {**field, "value": env_values.get(field["key"], os.getenv(field["key"], ""))}
+            for field in ADMIN_ENV_FIELDS
+        ],
+        "dotenv_path": str(ROOT_DOTENV_PATH),
+    }
+
+
 def _normalize_room_id(value: str | None) -> str | None:
     if not value:
         return None
@@ -66,7 +129,7 @@ def _normalize_room_id(value: str | None) -> str | None:
 
 
 def _load_thingspeak_rooms() -> list[dict[str, Any]]:
-    config_path = Path(DEFAULT_ADAPTOR_CONFIG_PATH)
+    config_path = get_adaptor_config_path()
     if not config_path.is_file():
         return []
 
@@ -101,17 +164,19 @@ def _load_thingspeak_rooms() -> list[dict[str, Any]]:
 
 
 async def _collect_snapshot(room_id: str) -> dict[str, Any]:
-    catalog = await _fetch_json(f"{DEFAULT_SERVICE_URLS['catalog']}/room/{room_id}")
-    rooms = await _fetch_json(f"{DEFAULT_SERVICE_URLS['catalog']}/rooms")
-    services = await _fetch_json(f"{DEFAULT_SERVICE_URLS['catalog']}/services")
-    prediction = await _fetch_json(f"{DEFAULT_SERVICE_URLS['prediction']}/prediction/{room_id}")
-    decision = await _fetch_json(f"{DEFAULT_SERVICE_URLS['decision']}/status")
+    _reload_runtime_env()
+    service_urls = get_service_urls()
+    catalog = await _fetch_json(f"{service_urls['catalog']}/room/{room_id}")
+    rooms = await _fetch_json(f"{service_urls['catalog']}/rooms")
+    services = await _fetch_json(f"{service_urls['catalog']}/services")
+    prediction = await _fetch_json(f"{service_urls['prediction']}/prediction/{room_id}")
+    decision = await _fetch_json(f"{service_urls['decision']}/status")
     thingspeak_rooms = _load_thingspeak_rooms()
 
     end = datetime.now(timezone.utc)
     start = end - timedelta(hours=1)
     history_url = (
-        f"{DEFAULT_SERVICE_URLS['adaptor']}/api/v1/history"
+        f"{service_urls['adaptor']}/api/v1/history"
         f"?roomid={room_id}&starttime={start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
     )
     history = await _fetch_json(history_url)
@@ -142,8 +207,33 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
         "decision_states": decision_data,
         "history": telemetry,
         "latest": latest,
-        "service_urls": DEFAULT_SERVICE_URLS,
+        "service_urls": service_urls,
     }
+
+
+def _authorize_admin(password: str) -> None:
+    _reload_runtime_env()
+    if password != os.getenv("ADMIN_PASSWORD", ADMIN_PASSWORD):
+        raise HTTPException(status_code=401, detail="Invalid admin password")
+
+
+def _apply_env_updates(values: dict[str, str | None]) -> list[str]:
+    _reload_runtime_env()
+    current = parse_env_file(ROOT_DOTENV_PATH)
+    updated_keys: list[str] = []
+
+    for key, value in values.items():
+        if value is None:
+            continue
+        cleaned = value.strip()
+        if cleaned == "":
+            continue
+        current[key] = cleaned
+        os.environ[key] = cleaned
+        updated_keys.append(key)
+
+    write_env_file(ROOT_DOTENV_PATH, current)
+    return sorted(updated_keys)
 
 
 @app.get("/health")
@@ -152,7 +242,8 @@ def health():
 
 
 @app.get("/api/snapshot")
-async def snapshot(room_id: str = DEFAULT_ROOM_ID):
+async def snapshot(room_id: str | None = None):
+    room_id = room_id or get_default_room_id()
     return JSONResponse(await _collect_snapshot(room_id))
 
 
@@ -162,10 +253,26 @@ async def thingspeak_rooms():
     return JSONResponse({"count": len(rooms), "rooms": rooms})
 
 
+@app.get("/admin/env", response_class=HTMLResponse)
+async def admin_env(request: Request):
+    context = _admin_context()
+    context["request"] = request
+    return TEMPLATES.TemplateResponse(request=request, name="admin_env.html", context=context)
+
+
+@app.post("/admin/env")
+async def update_admin_env(payload: AdminEnvUpdate):
+    _authorize_admin(payload.password)
+    updated_keys = _apply_env_updates(payload.values)
+    return {"status": "ok", "updated": updated_keys, "dotenv_path": str(ROOT_DOTENV_PATH)}
+
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, room_id: str = DEFAULT_ROOM_ID):
+async def index(request: Request, room_id: str | None = None):
+    room_id = room_id or get_default_room_id()
     context = await _collect_snapshot(room_id)
     context["request"] = request
+    context["admin_url"] = "/admin/env"
     return TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
 
 

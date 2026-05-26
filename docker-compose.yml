@@ -61,7 +61,8 @@ services:
 
   dashboard-service:
     build:
-      context: ./dashboard_service
+      context: .
+      dockerfile: dashboard_service/Dockerfile
     container_name: airguard-dashboard
     ports:
       - "8501:8501"
@@ -71,8 +72,10 @@ services:
       - DECISION_SERVICE_URL=http://host.docker.internal:8002
       - ADAPTOR_SERVICE_URL=http://host.docker.internal:8000
       - ADAPTOR_CONFIG_PATH=/app/adaptor_config.yaml
+      - ROOT_ENV_PATH=/app/.env
       - DEFAULT_ROOM_ID=room1
     volumes:
+      - ./.env:/app/.env:rw
       - ./components/adaptor/config.yaml:/app/adaptor_config.yaml:ro
     networks:
       - airguard-network
