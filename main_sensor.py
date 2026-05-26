@@ -5,7 +5,7 @@ import sys
 import httpx
 import yaml
 
-# Sensor 
+# Sensor
 from components.sensor.airguard_sensor import AirguardSensor
 from components.sensor import SensorEntityDescription, SensorDeviceClass
 from components.drivers.hardware import SensorDriver
@@ -53,7 +53,7 @@ async def get_devices_from_catalog(url: str):
         data = response.json()
         return data.get("data", [])
 
-# Test 
+# Test
 async def test_bus_monitor(event):
     print(f"\n [Bus Monitor] Event Fired: {event.event_type} with data: {event.data}\n")
 
@@ -63,7 +63,7 @@ def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
     actuators = []
     for item in config_list:
         desc = ActuatorEntityDescription(
-            
+
             key = item["key"],
             name=item["name"],
             device_class=ActuatorDeviceClass(item["device_class"])
@@ -79,7 +79,7 @@ async def main():
         sensor_config_data = yaml.safe_load(f)
     # Create mapping: sensor_key → sensor_config
     sensor_params_map = {s["key"]: s for s in sensor_config_data.get("sensors", [])}
-    
+
     # Load configuration from YAML file ,later catalog from outside
     catalog_url = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001")
     all_devices = await get_devices_from_catalog(catalog_url)
@@ -87,23 +87,23 @@ async def main():
     # Separate sensors and actuators based on device_class
     sensors_config = [d for d in all_devices if d["category"] == "sensor"]
     actuators_config = [d for d in all_devices if d["category"] == "actuator"]
-    
+
     # Merge sensor-specific parameters into sensor config from catalog
     for sensor_cfg in sensors_config:
         sensor_key = sensor_cfg["key"]
         if sensor_key in sensor_params_map:
             sensor_cfg.update(sensor_params_map[sensor_key])
-    
-    # Initialize the event bus only once 
+
+    # Initialize the event bus only once
     bus = EventBus()
 
     # Boot the MQTT Gateway
     mqtt_gateway = MQTTGateway(bus)
     asyncio.create_task(mqtt_gateway.start())
-    
+
     # test , listen to all state change events and print them out
     bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
-    
+
     # Initialize sensors and actuators, and register them to the bus
     all_sensors = setup_sensors_from_catalog(sensors_config, bus)
     all_actuators = setup_actuators_from_catalog(actuators_config, bus)

@@ -26,11 +26,11 @@ class CatalogRegistry:
         # self.ip = get_local_ip()
         # abandon 172.18.0.4，cuz Catalog is on local test
         self.ip = "127.0.0.1"
-        
+
     async def register(self):
         """Send POST request to Catalog Service."""
         url = f"{CATALOG_BASE_URL}/services/register"
-        
+
         # Payload matches teammate's scheduler logic exactly
         payload = {
             "service_id": self.service_id,
@@ -39,7 +39,7 @@ class CatalogRegistry:
             "health_endpoint": "/health",
             "type": "adaptor"
         }
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json=payload, timeout=5.0)
@@ -53,7 +53,7 @@ class CatalogRegistry:
     async def deregister(self):
         """Send DELETE request to Catalog Service."""
         url = f"{CATALOG_BASE_URL}/services/{self.service_id}"
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 await client.delete(url, timeout=3.0)
