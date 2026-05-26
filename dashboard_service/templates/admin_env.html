@@ -39,6 +39,44 @@
       padding: 28px 20px 40px;
     }
 
+    .site-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      padding: 16px 20px;
+      background: rgba(12, 20, 32, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .brand strong {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .hero, .card {
       background: var(--panel);
       border: 1px solid var(--line);
@@ -199,6 +237,37 @@
     .status.ok { color: var(--good); }
     .status.bad { color: var(--bad); }
 
+    .footer {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+      padding: 18px 20px;
+      background: linear-gradient(135deg, rgba(73, 214, 167, 0.08), rgba(121, 167, 255, 0.08));
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      color: var(--muted);
+    }
+
+    .footer strong {
+      color: var(--text);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .footer .project {
+      color: var(--text);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.05rem;
+      line-height: 1.35;
+    }
+
+    .footer .members {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
     @media (max-width: 900px) {
       .form-grid { grid-template-columns: 1fr; }
     }
@@ -206,6 +275,17 @@
 </head>
 <body>
   <div class="wrap">
+    <header class="site-header">
+      <div class="brand">
+        <strong>AirGuard</strong>
+        <span>Dashboard admin controls</span>
+      </div>
+      <div class="header-nav">
+        <span class="tag">Environment editor</span>
+        <a class="pill" href="/">Back to dashboard</a>
+      </div>
+    </header>
+
     <section class="hero">
       <span class="eyebrow">Admin Config</span>
       <h1>Update .env values from the dashboard.</h1>
@@ -258,6 +338,12 @@
 
       <div id="status" class="status"></div>
     </section>
+
+    <footer class="footer">
+      <strong>Project</strong>
+      <div class="project">AirGuard: A Scalable IoT Platform for IAQ Monitoring and Adaptive Ventilation Control</div>
+      <div class="members">Team members: Yang Ming (s337032), Mateus Lanzoni Trejos (s350240), Syed Umer Farooq Shah (s359420), Li Ruolin (s337356)</div>
+    </footer>
   </div>
 
   <script>
