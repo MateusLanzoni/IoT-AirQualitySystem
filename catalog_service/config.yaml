@@ -33,8 +33,7 @@ thingspeak:
       field7:
         device_id: fan_1
         name: fan_1
-  api_key: "OBMYFNLPN32TL6ZD"
+  api_key: "${THINGSPEAK_READ_API_KEY}"
   results: 1
- 
 
-    
+

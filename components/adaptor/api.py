@@ -1,6 +1,8 @@
 """
 REST API Interface for monitoring the Adaptor .
 """
+from pathlib import Path
+import os
 import yaml
 from datetime import datetime
 from typing import List, Dict, Any
@@ -9,13 +11,15 @@ import logging
 
 from components.adaptor.base import BaseTimeSeriesStorage
 from components.adaptor.thingspeak import ThingSpeakProvider
+from env_loader import expand_env_values, load_env_file
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 def load_config() -> Dict[str, Any]:
-    with open("components/adaptor/config.yaml", "r") as f:
-        return yaml.safe_load(f)
+    load_env_file(Path(__file__).resolve().parents[2] / ".env")
+    with open("components/adaptor/config.yaml", "r", encoding="utf-8") as f:
+        return expand_env_values(yaml.safe_load(f))
 
 # Global singleton initialization
 _config = load_config()
@@ -40,16 +44,16 @@ async def get_history(
 ):
     """
     Retrieves historical data for a given room and time range.
-    Rerurns a list of events containing 'created_at' and all dynamic fields. 
+    Rerurns a list of events containing 'created_at' and all dynamic fields.
     """
     # Format datetime objects to thingspeak's expected string format
     start_str = starttime.strftime("%Y-%m-%dT%H:%M:%SZ")
     end_str = endtime.strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+
     # Log the query parameters for debugging
     logger.info(f"Fetching history for room {roomid} from {start_str} to {end_str}")
 
-    # Call the abstracted storage 
+    # Call the abstracted storage
     result = await db.get_history(
         roomid = roomid,
         starttime = start_str,

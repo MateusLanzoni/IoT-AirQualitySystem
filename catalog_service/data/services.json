@@ -6,7 +6,7 @@
     "endpoint": "http://localhost:8002",
     "health_endpoint": "/health",
     "status": "online",
-    "last_seen": 1779804196,
+    "last_seen": 1779808038,
     "load": 0
   },
   {
@@ -16,7 +16,7 @@
     "endpoint": "http://localhost:8003",
     "health_endpoint": "/health",
     "status": "online",
-    "last_seen": 1779804196
+    "last_seen": 1779808038
   },
   {
     "service_id": "prediction-service",

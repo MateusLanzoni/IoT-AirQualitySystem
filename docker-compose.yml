@@ -33,6 +33,8 @@ services:
     environment:
 
       - MQTT_BROKER=mosquitto
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
     networks:
       - airguard-network
     restart: unless-stopped
@@ -47,8 +49,10 @@ services:
       - "8000:8000"
     environment:
       - MQTT_BROKER=mosquitto
-      - MQTT_USER=iot_admin
-      - MQTT_PASSWORD=airguard2026
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - THINGSPEAK_WRITE_API_KEY=${THINGSPEAK_WRITE_API_KEY}
+      - THINGSPEAK_READ_API_KEY=${THINGSPEAK_READ_API_KEY}
     networks:
       - airguard-network
     restart: unless-stopped
@@ -84,8 +88,8 @@ services:
       - MQTT_BROKER=mosquitto
       - MQTT_PORT=1883
       - MQTT_ALERT_TOPIC=alert/#
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - TELEGRAM_BOT_NAME=AirGuard Alerts
     networks:
       - airguard-network

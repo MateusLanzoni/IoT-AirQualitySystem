@@ -13,6 +13,7 @@ from components.adaptor.api import router
 from components.adaptor.ingress_client import start_ingress
 from components.adaptor.egress_to_tspeak import start_egress
 from components.registry.registry_client import CatalogRegistry
+from env_loader import expand_env_values, load_env_file
 
 logging.basicConfig(
     level=logging.DEBUG,  # Set to DEBUG for detailed logs during development
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 def load_config() -> dict:
     """Load configuration from config.yaml."""
+    load_env_file(Path(__file__).resolve().parent / ".env")
     config_candidates = [
         Path("config.yaml"),
         Path("components/adaptor/config.yaml"),
@@ -30,7 +32,7 @@ def load_config() -> dict:
     for config_path in config_candidates:
         if config_path.exists():
             with config_path.open("r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
+                return expand_env_values(yaml.safe_load(f))
 
     raise FileNotFoundError("Unable to locate adaptor config.yaml")
 

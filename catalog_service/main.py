@@ -10,7 +10,9 @@ Startup:
 import asyncio
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 import yaml
@@ -20,13 +22,19 @@ import storage as st
 import scheduler
 from routers import router
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+from env_loader import expand_env_values, load_env_file
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def load_config(path: str = "config.yaml") -> dict:
+    load_env_file(Path(__file__).resolve().parent.parent / ".env")
     with open(path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+        cfg = expand_env_values(yaml.safe_load(f))
     if os.getenv("SERVER_HOST"):
         cfg["server"]["host"] = os.getenv("SERVER_HOST")
     return cfg
@@ -56,7 +64,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Catalog Service", 
+    title="Catalog Service",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
