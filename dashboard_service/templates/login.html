@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirGuard Login</title>
+  <style>
+    :root {
+      --bg: #08111b;
+      --panel: rgba(12, 20, 32, 0.86);
+      --line: rgba(149, 180, 216, 0.18);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --accent: #49d6a7;
+      --bad: #ff7d7d;
+      --good: #67e8a4;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 80% 10%, rgba(73, 214, 167, 0.13), transparent 28%),
+        linear-gradient(180deg, #08111b 0%, #09131f 52%, #050b12 100%);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .panel {
+      width: min(560px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+      padding: 28px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(103, 232, 164, 0.24);
+      color: var(--accent);
+      background: rgba(73, 214, 167, 0.07);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 16px 0 8px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }
+
+    p {
+      margin: 0 0 20px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .notice {
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(103, 232, 164, 0.24);
+      background: rgba(73, 214, 167, 0.07);
+      color: var(--good);
+      font-size: 13px;
+    }
+
+    .notice.bad {
+      border-color: rgba(255, 125, 125, 0.24);
+      background: rgba(255, 125, 125, 0.08);
+      color: var(--bad);
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(3, 8, 14, 0.55);
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus { border-color: rgba(121, 167, 255, 0.5); }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .button, .link-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      padding: 11px 16px;
+      text-decoration: none;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .button {
+      border: 1px solid rgba(121, 167, 255, 0.18);
+      background: rgba(121, 167, 255, 0.14);
+      color: var(--text);
+    }
+
+    .link-button {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <span class="eyebrow">AirGuard Access</span>
+    <h1>Login</h1>
+    <p>Sign in to open the dashboard. Disabled users cannot enter.</p>
+
+    {% if message %}
+    <div class="notice">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="notice bad">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="actions">
+        <button class="button" type="submit">Login</button>
+        <a class="link-button" href="/register">Create user</a>
+      </div>
+    </form>
+
+    <div class="footer">
+      Admin users can create, disable, and delete normal users from Values configuration.
+    </div>
+  </main>
+</body>
+</html>

@@ -6,20 +6,23 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 import httpx
 import yaml
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
+from starlette.middleware.sessions import SessionMiddleware
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+import auth_store
 from env_loader import load_env_file, parse_env_file, write_env_file
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +33,9 @@ ROOT_DOTENV_PATH = Path(
 )
 load_env_file(ROOT_DOTENV_PATH, overwrite=True)
 
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "paassword")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "airguard-dev-session-secret")
+DEFAULT_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", auth_store.DEFAULT_ADMIN_USERNAME)
 
 ADMIN_ENV_FIELDS = [
     {"key": "MQTT_USER", "label": "MQTT user", "kind": "text"},
@@ -55,6 +60,11 @@ ADMIN_ENV_FIELDS = [
 class AdminEnvUpdate(BaseModel):
     password: str = Field(min_length=1)
     values: dict[str, str | None]
+
+
+class AdminUserCreate(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
 
 def get_service_urls() -> dict[str, str]:
     return {
@@ -92,6 +102,14 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    same_site="lax",
+    https_only=False,
+)
+
+auth_store.initialize_database(admin_username=DEFAULT_ADMIN_USERNAME, admin_password=ADMIN_PASSWORD)
 
 
 async def _fetch_json(url: str) -> dict[str, Any] | list[Any] | None:
@@ -107,6 +125,53 @@ def _reload_runtime_env() -> None:
     load_env_file(ROOT_DOTENV_PATH, overwrite=True)
 
 
+def _sync_admin_password_if_needed(updated_keys: list[str]) -> None:
+    if "ADMIN_PASSWORD" in updated_keys:
+        auth_store.sync_admin_password(DEFAULT_ADMIN_USERNAME, os.getenv("ADMIN_PASSWORD", ADMIN_PASSWORD))
+
+
+def _message_url(path: str, message: str | None = None, error: str | None = None) -> str:
+    params: list[str] = []
+    if message:
+        params.append(f"message={quote(message)}")
+    if error:
+        params.append(f"error={quote(error)}")
+    if params:
+        return f"{path}?{'&'.join(params)}"
+    return path
+
+
+def _get_current_user(request: Request) -> dict[str, Any] | None:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    return auth_store.get_user_by_id(int(user_id))
+
+
+def _redirect_to_login(message: str | None = None, error: str | None = None) -> RedirectResponse:
+    return RedirectResponse(_message_url("/login", message=message, error=error), status_code=303)
+
+
+def _redirect_to_dashboard(message: str | None = None) -> RedirectResponse:
+    return RedirectResponse(_message_url("/dashboard", message=message), status_code=303)
+
+
+def _require_logged_in_user(request: Request) -> dict[str, Any] | RedirectResponse:
+    current_user = _get_current_user(request)
+    if current_user is None:
+        return _redirect_to_login()
+    return current_user
+
+
+def _require_admin_user(request: Request) -> dict[str, Any] | RedirectResponse:
+    current_user = _get_current_user(request)
+    if current_user is None:
+        return _redirect_to_login()
+    if current_user.get("role") != "admin":
+        return _redirect_to_dashboard(message="Admin access required.")
+    return current_user
+
+
 def _admin_context() -> dict[str, Any]:
     _reload_runtime_env()
     env_values = parse_env_file(ROOT_DOTENV_PATH)
@@ -116,6 +181,23 @@ def _admin_context() -> dict[str, Any]:
             for field in ADMIN_ENV_FIELDS
         ],
         "dotenv_path": str(ROOT_DOTENV_PATH),
+    }
+
+
+def _render_login_context(request: Request, message: str | None = None, error: str | None = None) -> dict[str, Any]:
+    return {
+        "request": request,
+        "message": message,
+        "error": error,
+    }
+
+
+def _render_register_context(request: Request, message: str | None = None, error: str | None = None) -> dict[str, Any]:
+    return {
+        "request": request,
+        "message": message,
+        "error": error,
+        "admins": auth_store.list_admins(),
     }
 
 
@@ -262,12 +344,69 @@ def _apply_env_updates(values: dict[str, str | None]) -> list[str]:
         updated_keys.append(key)
 
     write_env_file(ROOT_DOTENV_PATH, current)
+    _sync_admin_password_if_needed(updated_keys)
     return sorted(updated_keys)
 
 
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "dashboard_service"}
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, message: str | None = None, error: str | None = None):
+    if _get_current_user(request):
+        return _redirect_to_dashboard()
+    context = _render_login_context(request, message=message, error=error)
+    return TEMPLATES.TemplateResponse(request=request, name="login.html", context=context)
+
+
+@app.post("/login")
+async def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+    user = auth_store.authenticate_user(username.strip(), password)
+    if user is None:
+        context = _render_login_context(request, error="Invalid username or password.")
+        return TEMPLATES.TemplateResponse(request=request, name="login.html", context=context, status_code=401)
+
+    request.session["user_id"] = user["id"]
+    request.session["username"] = user["username"]
+    request.session["role"] = user["role"]
+    return _redirect_to_dashboard(message=f"Welcome, {user['username']}.")
+
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request, message: str | None = None, error: str | None = None):
+    if _get_current_user(request):
+        return _redirect_to_dashboard()
+    context = _render_register_context(request, message=message, error=error)
+    return TEMPLATES.TemplateResponse(request=request, name="register.html", context=context)
+
+
+@app.post("/register")
+async def register_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    admin_username: str = Form(...),
+):
+    admin_user = auth_store.get_user_by_username(admin_username.strip())
+    if admin_user is None or admin_user.get("role") != "admin" or not admin_user.get("is_active"):
+        context = _render_register_context(request, error="Select a valid active admin.")
+        return TEMPLATES.TemplateResponse(request=request, name="register.html", context=context, status_code=400)
+
+    try:
+        auth_store.create_user(username.strip(), password, int(admin_user["id"]))
+    except ValueError as exc:
+        context = _render_register_context(request, error=str(exc))
+        return TEMPLATES.TemplateResponse(request=request, name="register.html", context=context, status_code=400)
+
+    return _redirect_to_login(message="Account created. You can log in now.")
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return _redirect_to_login(message="You have been logged out.")
 
 
 @app.get("/api/snapshot")
@@ -282,27 +421,112 @@ async def thingspeak_rooms():
     return JSONResponse({"count": len(rooms), "rooms": rooms})
 
 
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, room_id: str | None = None, message: str | None = None):
+    current_user = _require_logged_in_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    room_id = room_id or get_default_room_id()
+    context = await _collect_snapshot(room_id)
+    context.update(
+        request=request,
+        current_user=current_user,
+        is_admin=current_user.get("role") == "admin",
+        admin_url="/admin/env",
+        logout_url="/logout",
+        register_url="/register",
+        page_message=message,
+    )
+    return TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
+
+
 @app.get("/admin/env", response_class=HTMLResponse)
-async def admin_env(request: Request):
+async def admin_env(request: Request, message: str | None = None, error: str | None = None):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
     context = _admin_context()
     context["request"] = request
+    context["current_user"] = current_user
+    context["managed_users"] = auth_store.list_users_for_admin(int(current_user["id"]))
+    context["dashboard_url"] = "/dashboard"
+    context["logout_url"] = "/logout"
+    context["message"] = message
+    context["error"] = error
     return TEMPLATES.TemplateResponse(request=request, name="admin_env.html", context=context)
 
 
 @app.post("/admin/env")
-async def update_admin_env(payload: AdminEnvUpdate):
+async def update_admin_env(request: Request, payload: AdminEnvUpdate):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
     _authorize_admin(payload.password)
     updated_keys = _apply_env_updates(payload.values)
     return {"status": "ok", "updated": updated_keys, "dotenv_path": str(ROOT_DOTENV_PATH)}
 
 
+@app.post("/admin/users/create")
+async def admin_create_user(request: Request, username: str = Form(...), password: str = Form(...)):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    try:
+        auth_store.create_user(username.strip(), password, int(current_user["id"]))
+    except ValueError as exc:
+        return RedirectResponse(
+            _message_url("/admin/env", error=str(exc)),
+            status_code=303,
+        )
+
+    return RedirectResponse(_message_url("/admin/env", message="User created."), status_code=303)
+
+
+@app.post("/admin/users/{user_id}/toggle")
+async def admin_toggle_user(request: Request, user_id: int, enabled: str = Form(...)):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    target_enabled = enabled.lower() in {"1", "true", "yes", "on"}
+    try:
+        auth_store.set_user_active(user_id, target_enabled, admin_id=int(current_user["id"]))
+    except ValueError as exc:
+        return RedirectResponse(
+            _message_url("/admin/env", error=str(exc)),
+            status_code=303,
+        )
+
+    action = "enabled" if target_enabled else "disabled"
+    return RedirectResponse(_message_url("/admin/env", message=f"User {action}."), status_code=303)
+
+
+@app.post("/admin/users/{user_id}/delete")
+async def admin_delete_user(request: Request, user_id: int):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    try:
+        auth_store.delete_user(user_id, admin_id=int(current_user["id"]))
+    except ValueError as exc:
+        return RedirectResponse(
+            _message_url("/admin/env", error=str(exc)),
+            status_code=303,
+        )
+
+    return RedirectResponse(_message_url("/admin/env", message="User deleted."), status_code=303)
+
+
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, room_id: str | None = None):
-    room_id = room_id or get_default_room_id()
-    context = await _collect_snapshot(room_id)
-    context["request"] = request
-    context["admin_url"] = "/admin/env"
-    return TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
+async def index(request: Request):
+    if _get_current_user(request):
+        return _redirect_to_dashboard()
+    return _redirect_to_login()
 
 
 if __name__ == "__main__":

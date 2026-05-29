@@ -202,6 +202,12 @@ It listens to MQTT topics for sensor state and actuator status.
 The Telegram notifier listens only to alert topics on MQTT and forwards them to Telegram.
 It requires `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` to send real messages.
 
+## Dashboard Notes
+
+- The default admin user is `admin`.
+- On a fresh build, the default admin password is `password`.
+- You can change the admin password later from the dashboard admin settings page.
+
 ## Quick Start
 
 ### 1. Start Catalog Service

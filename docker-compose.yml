@@ -73,8 +73,11 @@ services:
       - ADAPTOR_SERVICE_URL=http://host.docker.internal:8000
       - ADAPTOR_CONFIG_PATH=/app/adaptor_config.yaml
       - ROOT_ENV_PATH=/app/.env
+      - AUTH_DB_PATH=/app/data/airguard_users.db
+      - SESSION_SECRET_KEY=airguard-dev-session-secret
       - DEFAULT_ROOM_ID=room1
     volumes:
+      - ./dashboard_service/data:/app/data:rw
       - ./.env:/app/.env:rw
       - ./components/adaptor/config.yaml:/app/adaptor_config.yaml:ro
     networks:

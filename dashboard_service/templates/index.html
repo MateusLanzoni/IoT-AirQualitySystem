@@ -39,164 +39,82 @@
       padding: 28px 20px 40px;
     }
 
-    .hero {
-      display: grid;
-      grid-template-columns: 1.3fr 0.7fr;
-      gap: 18px;
-      align-items: stretch;
-      margin-bottom: 18px;
+    /* Compact (normal user) color overrides to make the view distinct */
+    .compact {
+      --panel: rgba(3, 46, 38, 0.88); /* darker teal */
+      --panel-2: rgba(6, 62, 50, 0.92);
+      --accent: #4ad6a7; /* teal accent */
+      --accent-2: #3fb3a0;
+      --text: #e9fff7;
+      --muted: #9ed7c6;
+      --line: rgba(78, 164, 146, 0.14);
     }
+
+    /* Compact page background */
+    body.compact {
+      background: linear-gradient(180deg, #022c26 0%, #031916 60%);
+    }
+
+    /* Header/title */
+    .page-header { margin-bottom: 14px; }
+    .page-header h1 { margin: 6px 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.6rem, 4vw, 3rem); line-height: 1; }
+    .subtitle { color: var(--muted); margin: 0 0 6px; }
+
+    /* Top row: status (left) and sample (right) */
+    .top-row { display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; margin-bottom: 18px; }
 
     .hero-card, .glass-card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 24px;
+      border-radius: 16px;
       box-shadow: var(--shadow);
-      backdrop-filter: blur(16px);
-    }
-
-    .hero-card {
-      padding: 28px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero-card:before {
-      content: "";
-      position: absolute;
-      inset: auto -10% -45% auto;
-      width: 240px;
-      height: 240px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(73, 214, 167, 0.2), transparent 68%);
-      pointer-events: none;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border: 1px solid rgba(103, 232, 164, 0.24);
-      border-radius: 999px;
-      color: var(--accent);
-      background: rgba(73, 214, 167, 0.07);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    h1 {
-      margin: 16px 0 10px;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(2rem, 4vw, 4rem);
-      line-height: 0.96;
-      letter-spacing: -0.04em;
-    }
-
-    .subtitle {
-      max-width: 760px;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.6;
-      margin: 0;
-    }
-
-    .hero-metrics {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 22px;
-    }
-
-    .metric {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px 16px;
-    }
-
-    .metric .label {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 6px;
-    }
-
-    .metric .value {
-      font-size: 20px;
-      font-weight: 700;
-    }
-
-    .side-stack {
-      display: grid;
-      gap: 18px;
-    }
-
-    .glass-card {
+      backdrop-filter: blur(8px);
       padding: 18px;
     }
 
-    .card-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 14px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    .pill {
-      padding: 5px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 18px;
-    }
-
-    .status-card {
-      padding: 16px;
-      border-radius: 20px;
-      border: 1px solid var(--line);
-      background: rgba(10, 18, 30, 0.82);
-    }
-
-    .status-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    .status-name {
-      font-weight: 700;
-    }
-
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--good);
-      box-shadow: 0 0 0 6px rgba(103, 232, 164, 0.12);
-    }
-
-    .status-card.offline .status-dot { background: var(--bad); box-shadow: 0 0 0 6px rgba(255, 125, 125, 0.12); }
-    .status-card.degraded .status-dot { background: var(--warn); box-shadow: 0 0 0 6px rgba(255, 191, 105, 0.12); }
-
-    .section-grid {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
+    /* Improved hero styling */
+    .hero-card {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
       gap: 18px;
-      margin-bottom: 18px;
+      padding: 28px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+
+    .hero-left { flex: 1 1 60%; }
+    .hero-right { width: 220px; display:flex; flex-direction:column; gap:12px; align-items:flex-end }
+
+    .hero-metrics { display:flex; gap:18px; align-items:center }
+    .metric { background: transparent; padding: 6px 8px; border-radius: 10px }
+    .metric .label { color: var(--muted); font-size:13px }
+    .metric .value { font-size:20px; font-weight:800 }
+
+    .action-link { background: var(--accent); color: #04221a; border: none; padding: 10px 16px; border-radius: 999px }
+
+    .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+    .status-card { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(10,18,30,0.7); }
+    .status-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px }
+    .status-dot { width:10px; height:10px; border-radius:999px; background:var(--good); }
+    .status-card.offline .status-dot { background:var(--bad); }
+    .status-card.degraded .status-dot { background:var(--warn); }
+
+    .value-box { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+    .value-card { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.02); }
+    .value-card .k { color: var(--muted); font-size:12px; text-transform:uppercase; }
+    .value-card .v { font-size:20px; font-weight:800 }
+
+    .card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-weight:700 }
+    .pill { padding:4px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-size:12px }
+
+    .section-grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; margin-bottom:18px }
+
+    @media (max-width: 900px) {
+      .top-row, .section-grid { grid-template-columns: 1fr; }
+      .value-box { grid-template-columns: repeat(2, 1fr); }
+      .cards-grid { grid-template-columns: 1fr; }
     }
 
     .list {
@@ -319,15 +237,96 @@
       .hero, .section-grid, .cards-grid, .value-box { grid-template-columns: 1fr; }
       .hero-metrics { grid-template-columns: 1fr; }
     }
+    /* Compact mode styles */
+    .compact .cards-grid, .compact .section-grid { display: none; }
+    .compact .side-stack { display: none; }
+    .compact .compact-panel { display: grid; gap: 12px; margin-bottom: 18px; }
+    .compact .compact-status { display:flex; gap:8px; flex-wrap:wrap }
+    .compact .compact-status-item { background: var(--panel-2); padding:8px 10px; border-radius:10px; display:flex; align-items:center; gap:8px }
+    .compact .compact-status-item .status-dot { width:10px; height:10px; border-radius:999px; display:inline-block; margin-right:6px }
+    .compact .compact-status-item .status-dot.online { background: var(--good); box-shadow: 0 0 0 6px rgba(103, 232, 164, 0.08); }
+    .compact .compact-status-item .status-dot.offline { background: var(--bad); box-shadow: 0 0 0 6px rgba(255, 125, 125, 0.08); }
+    .compact .compact-sample { background: var(--panel); padding:14px; border-radius:12px }
+    .compact .rooms-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px }
+    .compact .room-card { background: rgba(255,255,255,0.02); padding:10px; border-radius:10px }
   </style>
 </head>
-<body>
+<body class="{{ 'compact' if not is_admin else '' }}">
   <div class="wrap">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <h1>AirGuard System Overview</h1>
+          <p class="subtitle">Room: {{ room_id }} · Services: {{ services|length }} · Recent telemetry points: {{ history|length }}</p>
+        </div>
+        <div>
+          <a class="action-link" href="/logout">Log out</a>
+        </div>
+      </div>
+    </header>
+    {% if not is_admin %}
+    <section class="compact-panel">
+      <div class="compact-status">
+        {% for key, item in status_cards.items() %}
+        <div class="compact-status-item">
+          <span class="status-dot {% if item.status|lower == 'online' %}online{% else %}offline{% endif %}"></span>
+          <div>
+            <div class="strong">{{ item.label }}</div>
+            <div class="muted">{{ item.status }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="compact-sample">
+        <div class="card-title"><span>Last available sample</span><span class="pill">History API</span></div>
+        <div class="value-box">
+          <div class="value-card"><div class="k">Temp</div><div class="v">{{ latest.get('field2', '-') }}</div></div>
+          <div class="value-card"><div class="k">Humidity</div><div class="v">{{ latest.get('field3', '-') }}</div></div>
+          <div class="value-card"><div class="k">CO2</div><div class="v">{{ latest.get('field4', '-') }}</div></div>
+          <div class="value-card"><div class="k">PM2.5</div><div class="v">{{ latest.get('field5', '-') }}</div></div>
+        </div>
+      </div>
+
+      
+    </section>
+    {% endif %}
+
+    {% if is_admin %}
+    <section class="top-row">
+      <div class="glass-card">
+        <div class="card-title">
+          <span>System status</span>
+          <span class="pill">Auto-collected</span>
+        </div>
+        <div class="list">
+          {% for key, item in status_cards.items() %}
+          <div class="list-row">
+            <div>
+              <div class="strong">{{ item.label }}</div>
+              <div class="muted">{{ key }}</div>
+            </div>
+            <div class="tag">{{ item.status }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-title"><span>Last available sample</span><span class="pill">History API</span></div>
+        <div class="value-box">
+          <div class="value-card"><div class="k">Temp</div><div class="v">{{ latest.get('field2', '-') }}</div></div>
+          <div class="value-card"><div class="k">Humidity</div><div class="v">{{ latest.get('field3', '-') }}</div></div>
+          <div class="value-card"><div class="k">CO2</div><div class="v">{{ latest.get('field4', '-') }}</div></div>
+          <div class="value-card"><div class="k">PM2.5</div><div class="v">{{ latest.get('field5', '-') }}</div></div>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if is_admin %}
     <section class="hero">
       <div class="hero-card">
-        <span class="eyebrow">AirGuard Dashboard</span>
-        <h1>AirGuard System Overview</h1>
-
         <div class="hero-metrics">
           <div class="metric">
             <div class="label">Room</div>
@@ -342,42 +341,8 @@
             <div class="value">{{ history|length }}</div>
           </div>
         </div>
-
         <div class="actions">
           <a class="action-link" href="{{ admin_url }}">Open admin env page</a>
-        </div>
-      </div>
-
-      <div class="side-stack">
-        <div class="glass-card">
-          <div class="card-title">
-            <span>System status</span>
-            <span class="pill">Auto-collected</span>
-          </div>
-          <div class="list">
-            {% for key, item in status_cards.items() %}
-            <div class="list-row">
-              <div>
-                <div class="strong">{{ item.label }}</div>
-                <div class="muted">{{ key }}</div>
-              </div>
-              <div class="tag">{{ item.status }}</div>
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <div class="glass-card">
-          <div class="card-title">
-            <span>Last available sample</span>
-            <span class="pill">History API</span>
-          </div>
-          <div class="value-box">
-            <div class="value-card"><div class="k">Temp</div><div class="v">{{ latest.get('field2', '-') }}</div></div>
-            <div class="value-card"><div class="k">Humidity</div><div class="v">{{ latest.get('field3', '-') }}</div></div>
-            <div class="value-card"><div class="k">CO2</div><div class="v">{{ latest.get('field4', '-') }}</div></div>
-            <div class="value-card"><div class="k">PM2.5</div><div class="v">{{ latest.get('field5', '-') }}</div></div>
-          </div>
         </div>
       </div>
     </section>
@@ -534,6 +499,10 @@
         </tbody>
       </table>
     </section>
+    {% endif %}
+    <footer class="site-footer" style="margin-top:32px;padding:18px 12px;color:var(--muted);font-size:13px;border-top:1px solid rgba(255,255,255,0.02);text-align:center;">
+      <strong>AirGuard</strong> — IoT Air Quality System · See <a href="../README.md" style="color:var(--muted);text-decoration:underline;">README</a> for details.
+    </footer>
   </div>
 </body>
 </html>
