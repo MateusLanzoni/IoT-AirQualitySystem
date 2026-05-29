@@ -163,9 +163,30 @@ def _load_thingspeak_rooms() -> list[dict[str, Any]]:
     return discovery
 
 
+def _build_latest_sample(telemetry: list[dict[str, Any]]) -> dict[str, Any]:
+    latest_fields = {"field2": "-", "field3": "-", "field4": "-", "field5": "-"}
+
+    for row in reversed(telemetry):
+        if not isinstance(row, dict):
+            continue
+        for field in latest_fields:
+            value = row.get(field)
+            if value not in (None, "") and latest_fields[field] == "-":
+                latest_fields[field] = value
+
+        if all(value != "-" for value in latest_fields.values()):
+            break
+
+    return latest_fields
+
+
 async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     _reload_runtime_env()
     service_urls = get_service_urls()
+    catalog_health = await _fetch_json(f"{service_urls['catalog']}/health")
+    prediction_health = await _fetch_json(f"{service_urls['prediction']}/health")
+    decision_health = await _fetch_json(f"{service_urls['decision']}/health")
+    adaptor_health = await _fetch_json(f"{service_urls['adaptor']}/health")
     catalog = await _fetch_json(f"{service_urls['catalog']}/room/{room_id}")
     rooms = await _fetch_json(f"{service_urls['catalog']}/rooms")
     services = await _fetch_json(f"{service_urls['catalog']}/services")
@@ -174,12 +195,20 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     thingspeak_rooms = _load_thingspeak_rooms()
 
     end = datetime.now(timezone.utc)
-    start = end - timedelta(hours=1)
-    history_url = (
+    recent_start = end - timedelta(hours=1)
+    recent_history_url = (
         f"{service_urls['adaptor']}/api/v1/history"
-        f"?roomid={room_id}&starttime={start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        f"?roomid={room_id}&starttime={recent_start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
     )
-    history = await _fetch_json(history_url)
+    history = await _fetch_json(recent_history_url)
+
+    if not history:
+        broad_start = end - timedelta(days=30)
+        broad_history_url = (
+            f"{service_urls['adaptor']}/api/v1/history"
+            f"?roomid={room_id}&starttime={broad_start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        )
+        history = await _fetch_json(broad_history_url)
 
     room_data = catalog.get("data", {}) if isinstance(catalog, dict) else {}
     services_data = services.get("data", []) if isinstance(services, dict) else []
@@ -187,13 +216,13 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     prediction_data = prediction.get("data", {}) if isinstance(prediction, dict) else {}
 
     telemetry = history or []
-    latest = telemetry[-1] if isinstance(telemetry, list) and telemetry else {}
+    latest = _build_latest_sample(telemetry) if isinstance(telemetry, list) else {}
 
     status_cards = {
-        "catalog": {"label": "Catalog", "status": "online" if catalog else "offline"},
-        "prediction": {"label": "Prediction", "status": "online" if prediction else "offline"},
-        "decision": {"label": "Decision", "status": "online" if decision else "offline"},
-        "adaptor": {"label": "Adaptor", "status": "online" if history else "offline"},
+        "catalog": {"label": "Catalog", "status": "online" if catalog_health else "offline"},
+        "prediction": {"label": "Prediction", "status": "online" if prediction_health else "offline"},
+        "decision": {"label": "Decision", "status": "online" if decision_health else "offline"},
+        "adaptor": {"label": "Adaptor", "status": "online" if adaptor_health else "offline"},
     }
 
     return {
