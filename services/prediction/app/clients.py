@@ -51,6 +51,7 @@ class ThingSpeakAdapterClient:
         end_param: str,
         point_interval_seconds: int,
         timeout: float,
+        lookback_days: int = 20,
     ):
         self.base_url = base_url.rstrip("/")
         self.history_path = history_path
@@ -58,6 +59,7 @@ class ThingSpeakAdapterClient:
         self.start_param = start_param
         self.end_param = end_param
         self.point_interval_seconds = point_interval_seconds
+        self.lookback_days = lookback_days
         self.timeout = timeout
 
     async def fetch_history(
@@ -68,7 +70,10 @@ class ThingSpeakAdapterClient:
     ) -> HistoryResponse:
         url = f"{self.base_url}{self.history_path}"
         end = end_time or datetime.now(timezone.utc)
-        start = end - timedelta(seconds=lookback_points * self.point_interval_seconds)
+        # Use the wider of the point-based window and the lookback-days window so
+        # the query still reaches the most recent available data after a gap.
+        point_window = timedelta(seconds=lookback_points * self.point_interval_seconds)
+        start = end - max(point_window, timedelta(days=self.lookback_days))
         params = {
             self.room_param: room_id,
             self.start_param: format_utc(end=start),
@@ -178,12 +183,22 @@ def normalize_points(items: list[dict[str, Any]], room_id: str) -> list[HistoryP
 def derive_latest(points: list[HistoryPoint]) -> IndoorSnapshot | None:
     if not points:
         return None
-    latest = sorted(points, key=lambda point: point.timestamp)[-1]
+    ordered = sorted(points, key=lambda point: point.timestamp)
+
+    def last_value(metric: str):
+        # ThingSpeak rows are sparse (each bulk update fills only some fields),
+        # so forward-fill: take the most recent non-null value for each metric.
+        for point in reversed(ordered):
+            value = getattr(point, metric)
+            if value is not None:
+                return value
+        return None
+
     return IndoorSnapshot(
-        temperature=latest.temperature,
-        humidity=latest.humidity,
-        co2=latest.co2,
-        pm25=latest.pm25,
+        temperature=last_value("temperature"),
+        humidity=last_value("humidity"),
+        co2=last_value("co2"),
+        pm25=last_value("pm25"),
     )
 
 
