@@ -67,16 +67,57 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - CATALOG_SERVICE_URL=http://host.docker.internal:8001
-      - PREDICTION_SERVICE_URL=http://host.docker.internal:8003
+      - CATALOG_SERVICE_URL=http://catalog-service:8001
+      - PREDICTION_SERVICE_URL=http://prediction-service:8003
       - DECISION_SERVICE_URL=http://host.docker.internal:8002
-      - ADAPTOR_SERVICE_URL=http://host.docker.internal:8000
+      - ADAPTOR_SERVICE_URL=http://adaptor-service:8000
       - ADAPTOR_CONFIG_PATH=/app/adaptor_config.yaml
       - ROOT_ENV_PATH=/app/.env
       - DEFAULT_ROOM_ID=room1
+    extra_hosts:
+      # Lets the dashboard still reach a Decision Service running on the host
+      # (decision is not containerized in this compose file).
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./.env:/app/.env:rw
       - ./components/adaptor/config.yaml:/app/adaptor_config.yaml:ro
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  # Room Catalog: device/service registry (REST). Prediction registers here.
+  catalog-service:
+    build:
+      context: ./catalog_service
+    container_name: airguard-catalog
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVER_HOST=0.0.0.0
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  # Prediction Service: short-term IAQ forecasting (REST).
+  # Reads room history from the adaptor and registers with the catalog.
+  prediction-service:
+    build:
+      context: ./services/prediction
+    container_name: airguard-prediction
+    depends_on:
+      - adaptor-service
+      - catalog-service
+    ports:
+      - "8003:8003"
+    environment:
+      - THINGSPEAK_ADAPTER_BASE_URL=http://adaptor-service:8000
+      - ROOM_CATALOG_BASE_URL=http://catalog-service:8001
+      - SERVICE_URL=http://prediction-service:8003
+      # How far back to look for room history. 1 day is plenty when the sensor
+      # is publishing live; raise it if testing against older data.
+      - HISTORY_LOOKBACK_DAYS=${HISTORY_LOOKBACK_DAYS:-1}
+      # Optional Turin outdoor AQI token (forecast still works without it).
+      - OUTDOOR_AQI_TOKEN=${OUTDOOR_AQI_TOKEN:-}
     networks:
       - airguard-network
     restart: unless-stopped
