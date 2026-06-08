@@ -30,11 +30,13 @@ services:
     command: ["python", "main_sensor.py"]
     depends_on:
       - mosquitto
+      - catalog-service
     environment:
-
       - MQTT_BROKER=mosquitto
       - MQTT_USER=${MQTT_USER}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
+      # Reach the catalog by its compose service name (not localhost).
+      - CATALOG_SERVICE_URL=http://catalog-service:8001
     networks:
       - airguard-network
     restart: unless-stopped
