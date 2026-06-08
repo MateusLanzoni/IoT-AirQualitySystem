@@ -113,9 +113,9 @@ services:
       - THINGSPEAK_ADAPTER_BASE_URL=http://adaptor-service:8000
       - ROOM_CATALOG_BASE_URL=http://catalog-service:8001
       - SERVICE_URL=http://prediction-service:8003
-      # How far back to look for room history. 1 day is plenty when the sensor
-      # is publishing live; raise it if testing against older data.
-      - HISTORY_LOOKBACK_DAYS=${HISTORY_LOOKBACK_DAYS:-1}
+      # How far back to look for room history. 20 days guarantees a forecast
+      # even if the sensor is not publishing live; lower it for tighter live data.
+      - HISTORY_LOOKBACK_DAYS=${HISTORY_LOOKBACK_DAYS:-20}
       # Optional Turin outdoor AQI token (forecast still works without it).
       - OUTDOOR_AQI_TOKEN=${OUTDOOR_AQI_TOKEN:-}
     networks:
