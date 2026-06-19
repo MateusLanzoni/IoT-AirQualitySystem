@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
                 start_param=settings.thingspeak_start_param,
                 end_param=settings.thingspeak_end_param,
                 point_interval_seconds=settings.history_point_interval_seconds,
+                lookback_days=settings.history_lookback_days,
                 timeout=settings.request_timeout_seconds,
             ),
             outdoor_aqi=OutdoorAqiClient(

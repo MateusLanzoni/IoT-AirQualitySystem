@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     default_horizon_minutes: int = 15
     default_lookback_points: int = 12
     history_point_interval_seconds: int = 300
+    # Widen the history query window so the service can still find the most
+    # recent available data even when the sensor has not published recently.
+    history_lookback_days: int = 20
 
     service_name: str = "prediction-service"
     service_version: str = "0.2.0"
