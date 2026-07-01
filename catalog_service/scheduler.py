@@ -115,30 +115,33 @@ async def heartbeat_task(config: dict):
         if store is None:
             continue
 
+        ts_devices = {}
+        if not mock_mode:
+            try:
+                ts_cfg = config["thingspeak"]
+                channel_id = ts_cfg["channel"]["id"]
+                channel_config = ts_cfg["channel"]["fields"]
+                url_template = ts_cfg["base_url"]
+                results = ts_cfg.get("results", 1)
+                api_key = ts_cfg.get("api_key")
+                url = url_template.format(channel_id=channel_id)
+                feeds = get_thingspeak_feeds(url, results, api_key)
+                ts_devices = handle_device_channel_feed(feeds, channel_config)
+            except Exception as e:
+                traceback.print_exc()
+                logger.warning(f"ThingSpeak fetch failed: {e}")
+
         for device_id, dev in list(store.devices.items()):
             try:
                 if mock_mode:
                     update = _mock_thingspeak_pull(device_id, dev.get("type", ""))
                     store.heartbeat_device(device_id, update)
                 else:
-                    # Real ThingSpeak fetch would go here
-                    ts_cfg = config["thingspeak"]
-
-                    channel_id = ts_cfg["channel"]["id"]
-                    channel_config = ts_cfg["channel"]["fields"]
-                    url_template = ts_cfg["base_url"]
-                    results = ts_cfg.get("results", 1)
-                    api_key = ts_cfg.get("api_key")
-                    url = url_template.format(channel_id=channel_id)
-                    feeds = get_thingspeak_feeds(
-                        url,
-                        results, 
-                        api_key
-                    )
-                    devices = handle_device_channel_feed(feeds, channel_config)
-                    for dev_id, data in devices.items():
-                        update = {"value": data["value"]}
-                        store.heartbeat_device(dev_id, update)
+                    data = ts_devices.get(device_id)
+                    if data is None:
+                        continue
+                    update = {"value": data["value"]}
+                    store.heartbeat_device(device_id, update)
             except Exception as e:
                 traceback.print_exc()
                 logger.warning(f"Heartbeat failed for {device_id}: {e}")
