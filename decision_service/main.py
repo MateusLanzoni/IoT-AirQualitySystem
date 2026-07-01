@@ -18,7 +18,7 @@ from fastapi import FastAPI
 
 import state_store as ss
 from mqtt_handler import MQTTHandler, MQTTPublisher
-from processor import process_sensor_event, process_device_feedback, process_telemetry_event, start as scheduler_start
+from processor import process_sensor_event, process_trigger_event, process_device_feedback, process_telemetry_event, start as scheduler_start
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -128,6 +128,21 @@ async def manual_trigger(room_id: str, body: dict):
         body["room_id"] = room_id
 
     await process_sensor_event(body, config, _mqtt_pub)
+    return {"code": 0, "msg": "trigger processed", "data": None}
+
+@app.get("/trigger/{room_id}/{device_id}/{action}")
+async def manual_trigger(room_id: str, device_id: str, action: str):
+    """
+    Manually inject a sensor event for testing.
+    """
+    import time
+    data = {}
+    data["timestamp"] = int(time.time() * 1000)
+    data["room_id"] = room_id
+    data["device_id"] = device_id
+    data["action"] = action
+
+    await process_trigger_event(data, config, _mqtt_pub)
     return {"code": 0, "msg": "trigger processed", "data": None}
 
 

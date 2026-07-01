@@ -225,6 +225,34 @@ async def prediction_task(config: dict, mqtt_pub):
 
         _check_command_timeouts(mqtt_pub, config)
         logger.debug("decision cycle complete")
+
+
+# ── triggered for testing ─────────────────────────────────────────────────────────────
+async def process_trigger_event(data: dict, config: dict, mqtt_pub) -> None:
+    room_id = data.get("room_id", "")
+    timestamp = data.get("timestamp", 0)
+    device_id = data.get("device_id", "")
+    action = data.get("action", "ON")
+    try: 
+        catalog_url = config["services"]["catalog_base_url"]
+        room_cfg = await _fetch_room_config(room_id, catalog_url)
+        sm_timeout = config.get("state_machine", {}).get("transition_timeout", 10)
+        if room_cfg is not None:
+            cmd = sm.transition(room_id, device_id, action, "triggered by admin for testing", timeout=sm_timeout)
+
+            mqtt_pub.publish_command(room_id, cmd["device_id"], cmd)
+            logger.info(f"manual triggered, command published: room={room_id} device={cmd['device_id']} cmd={cmd['command']}")
+            ss.get().set_pending_command(
+                room_id, cmd["device_id"],
+                cmd.get("state", cmd.get("command", "")),
+                time.time(),
+            )
+    except Exception as e:
+        traceback.print_exc()
+        logger.warning(f"manual trigger failed: {e.__getattribute____('message')}")
+    
+    _check_command_timeouts(mqtt_pub, config)
+
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 
 async def process_sensor_event(event: dict, config: dict, mqtt_pub) -> None:
