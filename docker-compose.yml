@@ -71,15 +71,11 @@ services:
     environment:
       - CATALOG_SERVICE_URL=http://catalog-service:8001
       - PREDICTION_SERVICE_URL=http://prediction-service:8003
-      - DECISION_SERVICE_URL=http://host.docker.internal:8002
+      - DECISION_SERVICE_URL=http://decision-service:8002
       - ADAPTOR_SERVICE_URL=http://adaptor-service:8000
       - ADAPTOR_CONFIG_PATH=/app/adaptor_config.yaml
       - ROOT_ENV_PATH=/app/.env
       - DEFAULT_ROOM_ID=room1
-    extra_hosts:
-      # Lets the dashboard still reach a Decision Service running on the host
-      # (decision is not containerized in this compose file).
-      - "host.docker.internal:host-gateway"
     volumes:
       - ./.env:/app/.env:rw
       - ./components/adaptor/config.yaml:/app/adaptor_config.yaml:ro
@@ -87,10 +83,30 @@ services:
       - airguard-network
     restart: unless-stopped
 
+  decision-service:
+    build: .
+    container_name: airguard-decision
+    command: ["python", "decision_service/main.py"]
+    depends_on:
+      - mosquitto
+      - catalog-service
+      - prediction-service
+    ports:
+      - "8002:8002"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - MQTT_BROKER=mosquitto
+      - CATALOG_BASE_URL=http://catalog-service:8001
+      - PREDICTION_BASE_URL=http://prediction-service:8003
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
   # Room Catalog: device/service registry (REST). Prediction registers here.
   catalog-service:
     build:
-      context: ./catalog_service
+      context: .
+      dockerfile: catalog_service/Dockerfile
     container_name: airguard-catalog
     ports:
       - "8001:8001"

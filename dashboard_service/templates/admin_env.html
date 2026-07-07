@@ -259,6 +259,43 @@
       margin-top: 14px;
     }
 
+    .policy-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .policy-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .policy-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .policy-row .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .policy-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .user-row {
       display: grid;
       grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr) auto;
@@ -348,6 +385,9 @@
       .user-row { grid-template-columns: 1fr; }
       .user-actions { justify-content: flex-start; }
       .user-create-grid { grid-template-columns: 1fr; }
+      .policy-grid { grid-template-columns: 1fr; }
+      .policy-row { grid-template-columns: 1fr; }
+      .policy-actions { justify-content: flex-start; }
     }
   </style>
 </head>
@@ -474,6 +514,96 @@
         {% endfor %}
         {% if not managed_users %}
         <div class="note">No normal users have been created yet.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Automation targets</span>
+        <span class="tag">room {{ default_room_id }}</span>
+      </div>
+      <div class="note">Create policies like temperature &gt; 30 to turn on a fan, and the decision service will evaluate them from the catalog room config.</div>
+
+      <form method="post" action="/admin/targets/create">
+        <div class="policy-grid">
+          <div class="field">
+            <label for="policy-id">Policy id</label>
+            <input id="policy-id" name="policy_id" type="text" placeholder="Optional, auto-generated if blank">
+          </div>
+          <div class="field">
+            <label for="policy-room">Room id</label>
+            <input id="policy-room" name="room_id" type="text" value="{{ default_room_id }}" required>
+          </div>
+          <div class="field">
+            <label for="policy-metric">Metric</label>
+            <select id="policy-metric" name="metric" required>
+              <option value="temperature">temperature</option>
+              <option value="humidity">humidity</option>
+              <option value="co2">co2</option>
+              <option value="pm25">pm25</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="policy-operator">Operator</label>
+            <select id="policy-operator" name="operator" required>
+              <option value=">">&gt;</option>
+              <option value="<">&lt;</option>
+              <option value=">=">&gt;=</option>
+              <option value="<=">&lt;=</option>
+              <option value="==">==</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="policy-value">Threshold value</label>
+            <input id="policy-value" name="value" type="number" step="0.1" value="30" required>
+          </div>
+          <div class="field">
+            <label for="policy-target-device">Target device</label>
+            {% if room_devices %}
+            <select id="policy-target-device" name="target_device" required>
+              {% for device in room_devices %}
+              <option value="{{ device.key }}">{{ device.key }}{% if device.device_class %} ({{ device.device_class }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <input id="policy-target-device" name="target_device" type="text" placeholder="fan_1" required>
+            {% endif %}
+          </div>
+          <div class="field">
+            <label for="policy-target-state">Target state</label>
+            <input id="policy-target-state" name="target_state" type="text" value="ON" required>
+          </div>
+          <div class="field">
+            <label for="policy-priority">Priority</label>
+            <input id="policy-priority" name="priority" type="number" value="1" min="1" required>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="button" type="submit">Save target policy</button>
+        </div>
+      </form>
+
+      <div class="policy-list">
+        {% for policy in room_targets %}
+        <div class="policy-row">
+          <div>
+            <div><strong>{{ policy.policy_id }}</strong></div>
+            <div class="meta">{{ policy.metric }} {{ policy.operator }} {{ policy.value }} → {{ policy.target_device }} = {{ policy.target_state }}</div>
+          </div>
+          <div class="meta">
+            Room: {{ policy.room_id }}<br>
+            Priority: {{ policy.priority }}
+          </div>
+          <div class="policy-actions">
+            <form method="post" action="/admin/targets/{{ policy.policy_id }}/delete" onsubmit="return confirm('Delete target {{ policy.policy_id }}?');">
+              <button class="mini-button danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% if not room_targets %}
+        <div class="note">No target policies are defined for this room yet.</div>
         {% endif %}
       </div>
     </section>

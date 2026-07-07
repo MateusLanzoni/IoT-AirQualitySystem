@@ -17,6 +17,7 @@ logger = logging.getLogger("telegram_notifier")
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_ALERT_TOPIC = os.getenv("MQTT_ALERT_TOPIC", "alert/#")
+MQTT_DECISION_TOPIC = os.getenv("MQTT_DECISION_TOPIC", "event/+/decision_log")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 TELEGRAM_BOT_NAME = os.getenv("TELEGRAM_BOT_NAME", "AirGuard Alerts")
@@ -57,6 +58,58 @@ def _format_alert(topic: str, payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_decision_log(topic: str, payload: dict[str, Any]) -> str:
+    room_id = payload.get("room_id")
+    if not room_id and topic.startswith("event/"):
+        parts = topic.split("/")
+        room_id = parts[1] if len(parts) > 1 else "unknown"
+
+    energy_mode = payload.get("energy_mode", "NORMAL")
+    timestamp = _format_timestamp(payload.get("timestamp"))
+    commands = payload.get("commands") if isinstance(payload.get("commands"), list) else []
+    decisions = payload.get("decisions") if isinstance(payload.get("decisions"), list) else []
+    filtered = payload.get("filtered_actions") if isinstance(payload.get("filtered_actions"), list) else []
+
+    lines = [
+        f"{TELEGRAM_BOT_NAME} decision",
+        f"Room: {room_id or 'unknown'}",
+        f"Energy mode: {energy_mode}",
+        f"Time: {timestamp}",
+    ]
+
+    if commands:
+        lines.append("Commands:")
+        for item in commands:
+            if not isinstance(item, dict):
+                continue
+            device_id = item.get("device_id", "unknown")
+            command = item.get("command", "UNKNOWN")
+            target_state = item.get("target_state", "")
+            reason = item.get("reason", "")
+            suffix = f" ({reason})" if reason else ""
+            lines.append(f"- {device_id}: {command} -> {target_state}{suffix}")
+    elif decisions:
+        lines.append("Decisions:")
+        for item in decisions:
+            if not isinstance(item, dict):
+                continue
+            device_id = item.get("device_id", "unknown")
+            target = item.get("target", "UNKNOWN")
+            lines.append(f"- {device_id}: target {target}")
+
+    if filtered:
+        lines.append("Filtered:")
+        for item in filtered:
+            if not isinstance(item, dict):
+                continue
+            device_id = item.get("device_id", "unknown")
+            reason = item.get("reason", "")
+            suffix = f" ({reason})" if reason else ""
+            lines.append(f"- {device_id}{suffix}")
+
+    return "\n".join(lines)
+
+
 def _send_telegram_message(text: str) -> None:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.warning("Telegram credentials missing; alert will be logged only.")
@@ -81,7 +134,9 @@ def _on_connect(client, userdata, flags, rc):
         logger.error("MQTT connect failed rc=%s", rc)
         return
     client.subscribe(MQTT_ALERT_TOPIC)
+    client.subscribe(MQTT_DECISION_TOPIC)
     logger.info("Subscribed to %s", MQTT_ALERT_TOPIC)
+    logger.info("Subscribed to %s", MQTT_DECISION_TOPIC)
 
 
 def _on_message(client, userdata, msg):
@@ -92,11 +147,15 @@ def _on_message(client, userdata, msg):
         return
 
     try:
-        text = _format_alert(str(msg.topic), payload if isinstance(payload, dict) else {})
+        topic = str(msg.topic)
+        if topic.startswith("event/") and topic.endswith("/decision_log"):
+            text = _format_decision_log(topic, payload if isinstance(payload, dict) else {})
+        else:
+            text = _format_alert(topic, payload if isinstance(payload, dict) else {})
         _send_telegram_message(text)
-        logger.info("Alert forwarded from %s", msg.topic)
+        logger.info("Message forwarded from %s", msg.topic)
     except Exception as exc:
-        logger.error("Failed to forward alert from %s: %s", msg.topic, exc)
+        logger.error("Failed to forward message from %s: %s", msg.topic, exc)
 
 
 def main() -> None:

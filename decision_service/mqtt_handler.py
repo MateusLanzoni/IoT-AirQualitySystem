@@ -57,15 +57,18 @@ class MQTTPublisher:
             "timestamp": int(time.time() * 1000),
         })
 
-    def publish_decision_log(self, room_id: str, decisions: list, filtered: list, energy_mode: str):
+    def publish_decision_log(self, room_id: str, decisions: list, filtered: list, energy_mode: str, commands: list | None = None):
         topic = f"event/{room_id}/decision_log"
-        self._publish(topic, {
+        payload = {
             "room_id": room_id,
             "decisions": decisions,
             "filtered_actions": filtered,
             "energy_mode": energy_mode,
             "timestamp": int(time.time() * 1000),
-        })
+        }
+        if commands is not None:
+            payload["commands"] = commands
+        self._publish(topic, payload)
 
 
 class MQTTHandler:

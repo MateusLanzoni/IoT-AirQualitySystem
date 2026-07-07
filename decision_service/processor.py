@@ -217,6 +217,15 @@ async def prediction_task(config: dict, mqtt_pub):
                     decisions=[{"device_id": a["device"], "target": a["state"], "priority": a["priority"]} for a in final_actions],
                     filtered=[{"device_id": f["device"], "reason": f.get("filter_reason", "")} for f in filtered_actions],
                     energy_mode=energy_mode,
+                    commands=[
+                        {
+                            "device_id": cmd["device_id"],
+                            "command": cmd["command"],
+                            "target_state": cmd.get("target_state"),
+                            "reason": cmd.get("reason", ""),
+                        }
+                        for cmd in commands
+                    ],
                 )
 
         except Exception as e:

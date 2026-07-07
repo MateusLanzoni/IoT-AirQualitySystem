@@ -66,6 +66,9 @@ class AdminUserCreate(BaseModel):
     username: str = Field(min_length=1)
     password: str = Field(min_length=1)
 
+
+ALLOWED_POLICY_OPERATORS = {">", "<", ">=", "<=", "=="}
+
 def get_service_urls() -> dict[str, str]:
     return {
         "catalog": os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001"),
@@ -182,6 +185,40 @@ def _admin_context() -> dict[str, Any]:
         ],
         "dotenv_path": str(ROOT_DOTENV_PATH),
     }
+
+
+def _build_policy_id(room_id: str, metric: str, operator: str, value: float, target_device: str) -> str:
+    raw = f"{room_id}_{metric}_{operator}_{value}_{target_device}"
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", raw).strip("_").lower()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return f"policy_{slug}_{stamp}"
+
+
+def _normalize_policy_value(value: str) -> float:
+    try:
+        return float(value)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Target value must be numeric.") from exc
+
+
+async def _catalog_post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    service_urls = get_service_urls()
+    response = await app.state.http.post(f"{service_urls['catalog']}{path}", json=payload)
+    response.raise_for_status()
+    body = response.json()
+    if isinstance(body, dict) and body.get("code", 1) != 0:
+        raise HTTPException(status_code=400, detail=body.get("msg", "Catalog request failed"))
+    return body
+
+
+async def _catalog_delete(path: str) -> dict[str, Any]:
+    service_urls = get_service_urls()
+    response = await app.state.http.delete(f"{service_urls['catalog']}{path}")
+    response.raise_for_status()
+    body = response.json()
+    if isinstance(body, dict) and body.get("code", 1) != 0:
+        raise HTTPException(status_code=400, detail=body.get("msg", "Catalog request failed"))
+    return body
 
 
 def _render_login_context(request: Request, message: str | None = None, error: str | None = None) -> dict[str, Any]:
@@ -447,10 +484,28 @@ async def admin_env(request: Request, message: str | None = None, error: str | N
     if isinstance(current_user, RedirectResponse):
         return current_user
 
+    service_urls = get_service_urls()
+    default_room_id = get_default_room_id()
+    room_snapshot = await _fetch_json(f"{service_urls['catalog']}/room/{default_room_id}")
+    devices_snapshot = await _fetch_json(f"{service_urls['catalog']}/devices")
+    room_data = room_snapshot.get("data", {}) if isinstance(room_snapshot, dict) else {}
+    room_targets = room_data.get("policies", []) if isinstance(room_data, dict) else []
+    all_devices = devices_snapshot.get("data", []) if isinstance(devices_snapshot, dict) else []
+    room_devices = [
+        device
+        for device in all_devices
+        if device.get("room_id") == default_room_id and device.get("category") == "actuator"
+    ]
+    if not room_devices and isinstance(room_data, dict):
+        room_devices = room_data.get("devices", [])
+
     context = _admin_context()
     context["request"] = request
     context["current_user"] = current_user
     context["managed_users"] = auth_store.list_users_for_admin(int(current_user["id"]))
+    context["default_room_id"] = default_room_id
+    context["room_targets"] = room_targets
+    context["room_devices"] = [device for device in room_devices if device.get("category") == "actuator"] or room_devices
     context["dashboard_url"] = "/dashboard"
     context["logout_url"] = "/logout"
     context["message"] = message
@@ -467,6 +522,71 @@ async def update_admin_env(request: Request, payload: AdminEnvUpdate):
     _authorize_admin(payload.password)
     updated_keys = _apply_env_updates(payload.values)
     return {"status": "ok", "updated": updated_keys, "dotenv_path": str(ROOT_DOTENV_PATH)}
+
+
+@app.post("/admin/targets/create")
+async def admin_create_target(
+    request: Request,
+    room_id: str = Form(...),
+    metric: str = Form(...),
+    operator: str = Form(...),
+    value: str = Form(...),
+    target_device: str = Form(...),
+    target_state: str = Form(...),
+    priority: int = Form(1),
+    policy_id: str | None = Form(None),
+):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    room_value = room_id.strip() or get_default_room_id()
+    metric_value = metric.strip().lower()
+    operator_value = operator.strip()
+    target_device_value = target_device.strip()
+    target_state_value = target_state.strip().upper()
+
+    if operator_value not in ALLOWED_POLICY_OPERATORS:
+        return RedirectResponse(_message_url("/admin/env", error="Unsupported target operator."), status_code=303)
+
+    if not target_device_value:
+        return RedirectResponse(_message_url("/admin/env", error="Target device is required."), status_code=303)
+
+    payload = {
+        "policy_id": policy_id.strip() if policy_id and policy_id.strip() else _build_policy_id(room_value, metric_value, operator_value, _normalize_policy_value(value), target_device_value),
+        "room_id": room_value,
+        "metric": metric_value,
+        "operator": operator_value,
+        "value": _normalize_policy_value(value),
+        "target_device": target_device_value,
+        "target_state": target_state_value,
+        "priority": priority,
+    }
+
+    try:
+        await _catalog_post("/policies", payload)
+    except HTTPException as exc:
+        return RedirectResponse(_message_url("/admin/env", error=str(exc.detail)), status_code=303)
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/env", error=f"Unable to save target: {exc}"), status_code=303)
+
+    return RedirectResponse(_message_url("/admin/env", message="Target saved."), status_code=303)
+
+
+@app.post("/admin/targets/{policy_id}/delete")
+async def admin_delete_target(request: Request, policy_id: str):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    try:
+        await _catalog_delete(f"/policies/{policy_id}")
+    except HTTPException as exc:
+        return RedirectResponse(_message_url("/admin/env", error=str(exc.detail)), status_code=303)
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/env", error=f"Unable to delete target: {exc}"), status_code=303)
+
+    return RedirectResponse(_message_url("/admin/env", message="Target deleted."), status_code=303)
 
 
 @app.post("/admin/users/create")
