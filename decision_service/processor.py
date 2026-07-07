@@ -344,7 +344,7 @@ async def process_device_feedback(topic: str, payload: dict, mqtt_pub=None, conf
         mqtt_pub.publish_alert(room_id, "command_unconfirmed", device_id, msg)
         ss.get().clear_pending_command(room_id, device_id)
 
-    
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 async def start(config: dict, mqtt_pub):
