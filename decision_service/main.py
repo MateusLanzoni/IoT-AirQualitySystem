@@ -20,6 +20,8 @@ import state_store as ss
 from mqtt_handler import MQTTHandler, MQTTPublisher
 from processor import process_sensor_event, process_device_feedback, process_telemetry_event, start as scheduler_start
 
+from mock import MockService
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,8 @@ class _DummyPublisher:
         logger.info(f"[DUMMY MQTT] alert: {args} {kwargs}")
     def publish_decision_log(self, *args, **kwargs):
         logger.info(f"[DUMMY MQTT] decision_log: {args} {kwargs}")
+    def publish_decision_log(self, *args, **kwargs):
+        logger.info(f"[DUMMY MQTT] mock_log: {args} {kwargs}")
 
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
@@ -130,6 +134,20 @@ async def manual_trigger(room_id: str, body: dict):
     await process_sensor_event(body, config, _mqtt_pub)
     return {"code": 0, "msg": "trigger processed", "data": None}
 
+    
+@app.get("/mock/start")
+def mock():
+    """Return a mock service object for testing.""" 
+    mock_service = MockService()
+    mock_service.run(5, mqtt_pub=_mqtt_pub)
+    return 0
+
+@app.get("/mock/stop")
+def mock():
+    """Return a mock service object for testing.""" 
+    mock_service = MockService()
+    mock_service.stop()
+    return 0
 
 if __name__ == "__main__":
     uvicorn.run(

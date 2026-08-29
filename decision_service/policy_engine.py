@@ -41,6 +41,7 @@ def evaluate(metrics: Dict[str, float], policies: List[dict], predictions: Optio
         priority = policy.get("priority", 99)
 
         metric_val = metrics.get(metric_name)
+        logger.debug("polucy, metric_val: %s", metric_val)
         if metric_val is None:
             # Try from predictions
             if predictions and metric_name in predictions:

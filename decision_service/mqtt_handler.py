@@ -47,6 +47,7 @@ class MQTTPublisher:
             payload["params"] = params
 
         self._publish(topic, payload)
+        logger.info(f"publish_command: topic={topic} payload={payload}")
 
     def publish_alert(self, room_id: str, alert_type: str, device_id: str, message: str):
         topic = f"alert/{room_id}"
@@ -70,7 +71,18 @@ class MQTTPublisher:
             payload["commands"] = commands
         self._publish(topic, payload)
 
+    def publish_mock_log(self, room_id: str, device_id: str, val):
+            topic = f"airguard/{room_id}/telemetry/device/{device_id}/mock"
 
+            payload = {
+                "room_id": room_id,
+                "device_id": device_id,
+                "value": val,
+                "timestamp": int(time.time() * 1000),
+            }
+            logger.debug("Mock service send a data: %s", payload)
+            self._publish(topic, payload)
+           
 class MQTTHandler:
     def __init__(self, config: dict, event_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
         self._config = config
@@ -139,35 +151,40 @@ class MQTTHandler:
             return None
 
         parts = topic.split("/")
-        if len(parts) < 5 or parts[2] != "telemetry":
+        if len(parts) < 5:
             return None
 
-        room_id = parts[1]
-        device_id = parts[4]
-        metric = self._metric_from_device_id(device_id)
-        value = payload.get("value")
-        if metric is None or value is None:
-            return None
+        elif parts[2] != "telemetry":
+            return topic, payload
 
-        ts = payload.get("timestamp", int(time.time() * 1000))
-        try:
-            ts = int(ts)
-        except Exception:
-            ts = int(time.time() * 1000)
-        if ts < 10_000_000_000:
-            ts *= 1000
+        else:
+            room_id = parts[1]
+            device_id = parts[4]
+            metric = self._metric_from_device_id(device_id)
+            value = payload.get("value")
+            if metric is None or value is None:
+                return None
 
-        normalized_topic = f"sensor/{room_id}/state"
-        normalized_payload = {
-            "room_id": room_id,
-            "timestamp": ts,
-            "metrics": {metric: value},
-            "meta": {
-                "device_id": device_id,
-                "source_topic": topic,
-            },
-        }
-        return normalized_topic, normalized_payload
+            ts = payload.get("timestamp", int(time.time()))
+            try:
+                ts = int(ts)
+            except Exception:
+                ts = int(time.time() * 1000)
+            # if ts < 10_000_000_000:
+            #     ts *= 1000
+
+            # normalized_topic = f"sensor/{room_id}/state"
+            normalized_payload = {
+                "room_id": room_id,
+                "timestamp": ts,
+                "value": payload.get("value"),
+                "metrics": {metric: value},
+                "meta": {
+                    "device_id": device_id,
+                    "source_topic": topic,
+                },
+            }
+            return topic, normalized_payload
 
     @staticmethod
     def _metric_from_device_id(device_id: str) -> Optional[str]:
