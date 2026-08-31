@@ -1,0 +1,7 @@
+[
+    {"device_id":"temp_1","value":30.34},
+
+    {"device_id":"pm25_1","value":36.34},
+
+    {"device_id":"co2_1","value":620.85}
+]

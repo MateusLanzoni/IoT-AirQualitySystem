@@ -54,10 +54,13 @@ def _filter_abnormal(metrics: Dict[str, float], limits: dict, room_id: str = "",
                 mqtt_pub.publish_alert(room_id, "abnormal_metric", key, msg)
     return clean
 
-
+import config
 async def _fetch_predictions(room_id: str, base_url: str) -> Optional[dict]:
+    if config.mockMode:
+        body = config.MOCK_PREDICTION_DATA
+        return body.get("data", {})
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient() as client:
             resp = await client.get(f"{base_url}/prediction/{room_id}")
             if resp.status_code == 200:
                 body = resp.json()
@@ -66,7 +69,7 @@ async def _fetch_predictions(room_id: str, base_url: str) -> Optional[dict]:
                 if code != 0:
                     logger.warning(f"Prediction service returned error code: {code}, details: {msg}")
                     return {}
-                return body.get("data", {}).get("predictions")
+                return body.get("data", {})
     except Exception as e:
         logger.debug(f"Prediction service unavailable: {e}")
     return None
@@ -175,6 +178,12 @@ async def prediction_task(config: dict, mqtt_pub):
                 # Fetch predictions
                 predictions = await _fetch_predictions(room_id, pred_url)
 
+                if predictions is None:
+                    continue
+                prediction_risk = predictions.get("risk")
+                if prediction_risk == "normal":
+                    continue
+
                 # Fetch room config
                 room_cfg = await _fetch_room_config(room_id, catalog_url)
                 if room_cfg is None:
@@ -260,7 +269,7 @@ async def process_sensor_event(event: dict, config: dict, mqtt_pub) -> None:
 
 
 async def process_telemetry_event(topic: str, payload: dict, config: dict, mqtt_pub) -> None:
-    """Handle airguard/{room_id}/telemetry/{device_type}/{device_id} messages."""
+    """Handle airguard/{room_id}/telemetry/{device_id} messages."""
     parts = topic.split("/")
     if len(parts) < 5:
         logger.warning(f"Unexpected telemetry topic format: {topic}")

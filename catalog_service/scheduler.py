@@ -155,20 +155,38 @@ async def heartbeat_task(config: dict):
 # ── Service Health Check ──────────────────────────────────────────────────────
 
 async def health_check_task(config: dict):
+    logger.info("Services health check task STARTED")
     interval = config["scheduler"]["health_check_interval"]
     request_timeout = 1.0
 
     async with httpx.AsyncClient() as client:
         while True:
             await asyncio.sleep(interval)
-            store = st.get()
+            logger.info("Services health cycle STARTED")
+            store = st.get()          
             if store is None:
                 continue
 
+            logger.debug("Services health cycle: store services = %s", store.services if store else None)
+
             for svc_id, svc in list(store.services.items()):
+
                 url = svc.get("endpoint", "") + svc.get("health_endpoint", "/health")
+
+                logger.debug("Services health cycle: svc_id=%s ,URL=%s", svc_id, url)
+
                 try:
                     resp = await client.get(url, timeout=request_timeout)
+
+                    logger.debug(
+                        "Services health cycle ingested %s: %s",
+                        svc_id,
+                        resp.status_code
+                    )
+                    if svc_id is None:
+                        logger.warning("Service ID is None for service with URL: %s", url)
+                        continue
+                    
                     if resp.status_code == 200:
                         svc["status"] = "online"
                         svc["last_seen"] = int(time.time())
@@ -177,16 +195,23 @@ async def health_check_task(config: dict):
                             svc["load"] = body["load"]
                     else:
                         svc["status"] = "degraded"
-                except Exception:
+                except Exception as e:
+                    logger.exception(
+                        "Health check failed: svc_id=%s, url=%s, error=%s",
+                        svc_id,
+                        url,
+                        e
+                    )
                     svc["status"] = "offline"
 
             store.save_services()
-            logger.debug("Health check cycle complete")
+            logger.info("Health check cycle complete")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 async def start(config: dict):
+    logger.info("Scheduler.start() ENTERED")
     await asyncio.gather(
         heartbeat_task(config),
         health_check_task(config),

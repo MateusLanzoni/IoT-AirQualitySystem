@@ -3,26 +3,26 @@
     "service_id": "decision_service",
     "service_name": "decision_service",
     "type": "decision",
-    "endpoint": "http://localhost:8002",
+    "endpoint": "http://decision-service:8002",
     "health_endpoint": "/health",
-    "status": "online",
-    "last_seen": 1779910294,
+    "status": "offline",
+    "last_seen": 0,
     "load": 0
   },
   {
-    "service_id": "prediction_service",
+    "service_id": "prediction-service",
     "service_name": "prediction_service",
     "type": "prediction",
-    "endpoint": "http://localhost:8003",
+    "endpoint": "http://prediction-service:8003",
     "health_endpoint": "/health",
-    "status": "online",
-    "last_seen": 1779910294
+    "status": "offline",
+    "last_seen": 0
   },
   {
-    "service_id": "prediction-service",
-    "service_name": "prediction-service",
-    "type": "prediction",
-    "endpoint": "http://prediction-service:8003",
+    "service_id": "thingspeak_adaptor_api",
+    "service_name": "thingspeak_adaptor_api",
+    "type": "adaptor",
+    "endpoint": "http://adaptor-service:8000",
     "health_endpoint": "/health",
     "status": "offline",
     "last_seen": 0
