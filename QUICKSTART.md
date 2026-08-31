@@ -188,7 +188,7 @@ python telegram_notifier/main.py
     ┌────────────┼────────────┐
     │            │            │
     v            v            v
- Catalog    Adaptor     Decision  
+ Catalog    Adaptor     Decision
  (8001)     (8000)       (8002)
     │            │            │
     │       MQTT Broker       │
