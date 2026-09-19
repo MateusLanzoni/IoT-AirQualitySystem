@@ -325,6 +325,61 @@ def _build_latest_sample(telemetry: list[dict[str, Any]]) -> dict[str, Any]:
     return latest_fields
 
 
+async def _fetch_room_history(room_id: str, adaptor_url: str, lookback_hours: int = 24) -> list[dict[str, Any]]:
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(hours=lookback_hours)
+    history_url = (
+        f"{adaptor_url}/api/v1/history"
+        f"?roomid={room_id}&starttime={start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    )
+    history = await _fetch_json(history_url)
+    if isinstance(history, list):
+        return [row for row in history if isinstance(row, dict)]
+    if isinstance(history, dict):
+        points = history.get("points", history.get("items", []))
+        if isinstance(points, list):
+            return [row for row in points if isinstance(row, dict)]
+    return []
+
+
+async def _enrich_thingspeak_rooms(
+    rooms: list[dict[str, Any]], adaptor_url: str,
+) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    history_by_room: dict[str, list[dict[str, Any]]] = {}
+    for room in rooms:
+        item = dict(room)
+        room_id = item.get("room_id", "unknown")
+        if item.get("kind") != "telemetry":
+            item["telemetry"] = []
+            item["history_points"] = 0
+            enriched.append(item)
+            continue
+        if room_id not in history_by_room:
+            history_by_room[room_id] = await _fetch_room_history(room_id, adaptor_url)
+
+        history = history_by_room.get(room_id, [])
+        fields: list[dict[str, Any]] = []
+        for field in item.get("fields", []):
+            value = None
+            timestamp = None
+            for row in reversed(history):
+                candidate = row.get(field["field"])
+                if candidate not in (None, ""):
+                    value = candidate
+                    timestamp = row.get("created_at", row.get("timestamp"))
+                    break
+            fields.append({
+                **field,
+                "value": value if value not in (None, "") else "-",
+                "timestamp": timestamp,
+            })
+        item["telemetry"] = fields
+        item["history_points"] = len(history)
+        enriched.append(item)
+    return enriched
+
+
 async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     _reload_runtime_env()
     service_urls = get_service_urls()
@@ -337,7 +392,9 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     services = await _fetch_json(f"{service_urls['catalog']}/services")
     prediction = await _fetch_json(f"{service_urls['prediction']}/prediction/{room_id}")
     decision = await _fetch_json(f"{service_urls['decision']}/status")
-    thingspeak_rooms = _load_thingspeak_rooms()
+    thingspeak_rooms = await _enrich_thingspeak_rooms(
+        _load_thingspeak_rooms(), service_urls["adaptor"]
+    )
 
     end = datetime.now(timezone.utc)
     recent_start = end - timedelta(hours=1)
@@ -482,6 +539,15 @@ async def snapshot(room_id: str | None = None):
 async def thingspeak_rooms():
     rooms = _load_thingspeak_rooms()
     return JSONResponse({"count": len(rooms), "rooms": rooms})
+
+
+@app.get("/api/thingspeak-rooms/{room_id}/telemetry")
+async def thingspeak_room_telemetry(room_id: str):
+    _reload_runtime_env()
+    service_urls = get_service_urls()
+    rooms = [room for room in _load_thingspeak_rooms() if room.get("room_id") == room_id]
+    enriched = await _enrich_thingspeak_rooms(rooms, service_urls["adaptor"])
+    return JSONResponse({"room_id": room_id, "rooms": enriched})
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

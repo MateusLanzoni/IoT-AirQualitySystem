@@ -40,7 +40,9 @@ async def _dispatch_loop(queue: asyncio.Queue):
     while True:
         topic, payload = await queue.get()
         try:
-            if "/telemetry/" in topic:
+            if topic.startswith("sensor/"):
+                await process_sensor_event(payload, config, _mqtt_pub)
+            elif "/telemetry/" in topic:
                 await process_telemetry_event(topic, payload, config, _mqtt_pub)
             elif "/state/" in topic or topic.startswith("device/"):
                 await process_device_feedback(topic, payload, _mqtt_pub, config)
@@ -115,7 +117,12 @@ def health():
 @app.get("/status")
 def status():
     """Return current in-memory device states (debug endpoint)."""
-    return {"code": 0, "msg": "success", "data": ss.get().get_all_states()}
+    return {
+        "code": 0,
+        "msg": "success",
+        "data": ss.get().get_all_states(),
+        "metrics": ss.get().get_all_metrics(),
+    }
 
 
 @app.post("/trigger/{room_id}")

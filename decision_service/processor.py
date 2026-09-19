@@ -154,9 +154,11 @@ def _check_command_timeouts(mqtt_pub, config: dict):
 # ── Prediction ──────────────────────────────────────────────────────
 async def prediction_task(config: dict, mqtt_pub):
     interval = config["scheduler"]["prediction_interval"]
+    logger.info("Policy evaluation scheduler started with interval=%ss", interval)
 
     while True:
         await asyncio.sleep(interval)
+        logger.info("Starting policy evaluation cycle")
 
         try:
             catalog_url = config["services"]["catalog_base_url"]
@@ -166,10 +168,12 @@ async def prediction_task(config: dict, mqtt_pub):
 
             # 3. Get all rooms from catalog
             rooms = await _fetch_all_rooms(catalog_url)
+            logger.info("Decision cycle rooms=%s", rooms)
 
             for room_id in rooms:
                 # Get latest metrics from In-Memory
                 metrics_entry = ss.get().get_metrics(room_id)
+                logger.info("Decision cycle room=%s metrics_entry=%s", room_id, bool(metrics_entry))
                 if not metrics_entry:
                     logger.debug(f"No metrics in store for room {room_id} — skipping")
                     continue
@@ -177,12 +181,6 @@ async def prediction_task(config: dict, mqtt_pub):
 
                 # Fetch predictions
                 predictions = await _fetch_predictions(room_id, pred_url)
-
-                if predictions is None:
-                    continue
-                prediction_risk = predictions.get("risk")
-                if prediction_risk == "normal":
-                    continue
 
                 # Fetch room config
                 room_cfg = await _fetch_room_config(room_id, catalog_url)
@@ -193,6 +191,7 @@ async def prediction_task(config: dict, mqtt_pub):
                 policies = room_cfg.get("policies", [])
                 conflict_rules = room_cfg.get("conflicts", [])
                 energy_mode = room_cfg.get("energy_mode", "NORMAL")
+                logger.info("Evaluating room=%s metrics=%s policies=%s", room_id, metrics, len(policies))
 
                 # 5. Evaluate policies → candidates
                 candidates = policy_engine.evaluate(metrics, policies, predictions)
@@ -216,7 +215,7 @@ async def prediction_task(config: dict, mqtt_pub):
                     logger.info(f"Command published: room={room_id} device={cmd['device_id']} cmd={cmd['command']}")
                     ss.get().set_pending_command(
                         room_id, cmd["device_id"],
-                        cmd.get("state", cmd.get("command", "")),
+                        cmd.get("target_state", cmd.get("state", cmd.get("command", ""))),
                         time.time(),
                     )
 
@@ -263,9 +262,12 @@ async def process_sensor_event(event: dict, config: dict, mqtt_pub) -> None:
         logger.warning(f"No valid metrics for room {room_id} after filtering")
         return
 
-    # 3. Store metrics to In-Memory
-    ss.get().set_metrics(room_id, metrics, timestamp, event.get("meta", {}))
-    logger.debug(f"Metrics stored for room {room_id}: {metrics}")
+    # 3. Merge metrics so separately published sensor readings form one room snapshot.
+    previous = ss.get().get_metrics(room_id) or {}
+    merged_metrics = dict(previous.get("metrics", {}))
+    merged_metrics.update(metrics)
+    ss.get().set_metrics(room_id, merged_metrics, timestamp, event.get("meta", {}))
+    logger.debug(f"Metrics stored for room {room_id}: {merged_metrics}")
 
 
 async def process_telemetry_event(topic: str, payload: dict, config: dict, mqtt_pub) -> None:

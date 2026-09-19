@@ -67,6 +67,10 @@ class StateStore:
             entry = self._metrics_store.get(room_id)
             return dict(entry) if entry else None
 
+    def get_all_metrics(self) -> dict:
+        with self._lock:
+            return {room_id: dict(entry) for room_id, entry in self._metrics_store.items()}
+
     # ── Config cache ──────────────────────────────────────────────────────────
   
     def get_config(self, room_id: str) -> Optional[dict]:

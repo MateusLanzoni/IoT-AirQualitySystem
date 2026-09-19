@@ -2,6 +2,7 @@ import httpx
 import logging
 import os
 import socket
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,7 @@ class CatalogRegistry:
     def __init__(self):
         self.service_id = "thingspeak-adaptor"
         self.port = 8000
-        # self.ip = get_local_ip()
-        # abandon 172.18.0.4，cuz Catalog is on local test
-        self.ip = "127.0.0.1"
+        self.service_url = os.getenv("SERVICE_URL", f"http://127.0.0.1:{self.port}").rstrip("/")
 
     async def register(self):
         """Send POST request to Catalog Service."""
@@ -35,20 +34,24 @@ class CatalogRegistry:
         payload = {
             "service_id": self.service_id,
             "service_name": "ThingSpeak_Adaptor",
-            "endpoint": f"http://{self.ip}:{self.port}",
+            "endpoint": self.service_url,
             "health_endpoint": "/health",
             "type": "adaptor"
         }
 
         async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, timeout=5.0)
-                if response.status_code in (200, 201):
-                    logger.info("Registered to Catalog Service.")
-                else:
+            for attempt in range(1, 6):
+                try:
+                    response = await client.post(url, json=payload, timeout=5.0)
+                    if response.status_code in (200, 201):
+                        logger.info("Registered to Catalog Service.")
+                        return
                     logger.error(f"Catalog registration failed: {response.text}")
-            except Exception as e:
-                logger.error(f"Network error during registration: {e}")
+                except Exception as e:
+                    logger.warning("Catalog registration attempt %s/5 failed: %s", attempt, e)
+                if attempt < 5:
+                    await asyncio.sleep(2)
+            logger.error("Catalog registration failed after 5 attempts.")
 
     async def deregister(self):
         """Send DELETE request to Catalog Service."""

@@ -55,7 +55,9 @@ class MQTTGateway:
     async def _on_state_changed(self, event):
         """Triggered when a sensor or actuator changes state."""
 
+        _LOGGER.info("MQTT gateway received state event for %s", event.data.get("device_id"))
         if not self.client:
+            _LOGGER.warning("Dropping telemetry for %s because MQTT is not connected", event.data.get("device_id"))
             return
         
         try:
@@ -75,7 +77,7 @@ class MQTTGateway:
 
             # Fire and forget(don't wait)
             await self.client.publish(topic, payload=validated_msg.model_dump_json())
-            _LOGGER.debug(f"Published: {topic} to {validated_msg.model_dump_json()}")
+            _LOGGER.info("Published telemetry: %s", topic)
 
         except ValidationError as e:
             _LOGGER.error(f"Schema validation error: {e}")

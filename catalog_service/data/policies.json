@@ -28,5 +28,15 @@
     "target_device": "fan_1",
     "target_state": "ON",
     "priority": 3
+  },
+  {
+    "policy_id": "demo_temperature_fan",
+    "room_id": "room1",
+    "metric": "temperature",
+    "operator": ">",
+    "value": 3.0,
+    "target_device": "fan_1",
+    "target_state": "ON",
+    "priority": 1
   }
 ]

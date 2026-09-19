@@ -206,6 +206,33 @@
       font-size: 12px;
     }
 
+    .thingspeak-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .thingspeak-field {
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .thingspeak-field .field-name {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .thingspeak-field .field-value {
+      margin-top: 4px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
     .actions {
       margin-top: 16px;
       display: flex;
@@ -476,6 +503,18 @@
                 <span class="tag">{{ item.kind }}</span>
               </div>
               <div class="muted">Channel {{ item.channel_id }}{% if item.source_topic %} · {{ item.source_topic }}{% endif %}</div>
+              {% if item.telemetry %}
+              <div class="thingspeak-fields">
+                {% for field in item.telemetry %}
+                <div class="thingspeak-field">
+                  <div class="field-name">{{ field.field }}</div>
+                  <div class="field-value">{{ field.value }}</div>
+                  {% if field.timestamp %}<div class="muted">{{ field.timestamp }}</div>{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              <div class="muted">{{ item.history_points }} recent telemetry points</div>
+              {% endif %}
             </div>
             <div class="tag">{{ item.fields|length }} fields</div>
           </div>

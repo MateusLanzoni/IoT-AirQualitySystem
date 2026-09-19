@@ -5,18 +5,18 @@
     "type": "decision",
     "endpoint": "http://decision-service:8002",
     "health_endpoint": "/health",
-    "status": "offline",
-    "last_seen": 0,
+    "status": "online",
+    "last_seen": 1789841147,
     "load": 0
   },
   {
     "service_id": "prediction-service",
-    "service_name": "prediction_service",
+    "service_name": "prediction-service",
     "type": "prediction",
     "endpoint": "http://prediction-service:8003",
     "health_endpoint": "/health",
-    "status": "offline",
-    "last_seen": 0
+    "status": "online",
+    "last_seen": 1789841147
   },
   {
     "service_id": "thingspeak_adaptor_api",
@@ -24,7 +24,16 @@
     "type": "adaptor",
     "endpoint": "http://adaptor-service:8000",
     "health_endpoint": "/health",
-    "status": "offline",
-    "last_seen": 0
+    "status": "online",
+    "last_seen": 1789841147
+  },
+  {
+    "service_id": "thingspeak-adaptor",
+    "service_name": "ThingSpeak_Adaptor",
+    "type": "adaptor",
+    "endpoint": "http://adaptor-service:8000",
+    "health_endpoint": "/health",
+    "status": "online",
+    "last_seen": 1789841147
   }
 ]
