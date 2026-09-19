@@ -221,6 +221,32 @@ async def _catalog_delete(path: str) -> dict[str, Any]:
     return body
 
 
+async def _catalog_put(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    service_urls = get_service_urls()
+    response = await app.state.http.put(f"{service_urls['catalog']}{path}", json=payload)
+    response.raise_for_status()
+    body = response.json()
+    if isinstance(body, dict) and body.get("code", 1) != 0:
+        raise HTTPException(status_code=400, detail=body.get("msg", "Catalog request failed"))
+    return body
+
+
+def _csv_values(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+async def _management_data() -> dict[str, Any]:
+    service_urls = get_service_urls()
+    rooms = await _fetch_json(f"{service_urls['catalog']}/rooms")
+    devices = await _fetch_json(f"{service_urls['catalog']}/devices")
+    policies = await _fetch_json(f"{service_urls['catalog']}/policies")
+    return {
+        "rooms": rooms.get("data", []) if isinstance(rooms, dict) else [],
+        "devices": devices.get("data", []) if isinstance(devices, dict) else [],
+        "policies": policies.get("data", []) if isinstance(policies, dict) else [],
+    }
+
+
 def _render_login_context(request: Request, message: str | None = None, error: str | None = None) -> dict[str, Any]:
     return {
         "request": request,
@@ -513,6 +539,25 @@ async def admin_env(request: Request, message: str | None = None, error: str | N
     return TEMPLATES.TemplateResponse(request=request, name="admin_env.html", context=context)
 
 
+@app.get("/admin/management", response_class=HTMLResponse)
+async def admin_management(request: Request, message: str | None = None, error: str | None = None):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+
+    context = await _management_data()
+    context.update(
+        request=request,
+        current_user=current_user,
+        dashboard_url="/dashboard",
+        admin_env_url="/admin/env",
+        logout_url="/logout",
+        message=message,
+        error=error,
+    )
+    return TEMPLATES.TemplateResponse(request=request, name="admin_management.html", context=context)
+
+
 @app.post("/admin/env")
 async def update_admin_env(request: Request, payload: AdminEnvUpdate):
     current_user = _require_admin_user(request)
@@ -587,6 +632,162 @@ async def admin_delete_target(request: Request, policy_id: str):
         return RedirectResponse(_message_url("/admin/env", error=f"Unable to delete target: {exc}"), status_code=303)
 
     return RedirectResponse(_message_url("/admin/env", message="Target deleted."), status_code=303)
+
+
+@app.post("/admin/management/rooms/create")
+async def admin_create_room(
+    request: Request,
+    room_id: str = Form(...),
+    device_ids: str = Form(""),
+    energy_mode: str = Form("NORMAL"),
+    schedule_start: str = Form("08:00"),
+    schedule_end: str = Form("23:00"),
+):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    payload = {
+        "room_id": room_id.strip(),
+        "device_ids": _csv_values(device_ids),
+        "energy_mode": energy_mode.strip().upper(),
+        "schedule": {"start": schedule_start.strip(), "end": schedule_end.strip()},
+    }
+    try:
+        await _catalog_post("/rooms", payload)
+        message = "Room created."
+    except Exception as exc:
+        message = f"Unable to create room: {getattr(exc, 'detail', exc)}"
+        return RedirectResponse(_message_url("/admin/management", error=message), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message=message), status_code=303)
+
+
+@app.post("/admin/management/rooms/{room_id}/update")
+async def admin_update_room(
+    request: Request,
+    room_id: str,
+    device_ids: str = Form(""),
+    energy_mode: str = Form("NORMAL"),
+    schedule_start: str = Form("08:00"),
+    schedule_end: str = Form("23:00"),
+):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    payload = {
+        "device_ids": _csv_values(device_ids),
+        "energy_mode": energy_mode.strip().upper(),
+        "schedule": {"start": schedule_start.strip(), "end": schedule_end.strip()},
+    }
+    try:
+        await _catalog_put(f"/rooms/{room_id}", payload)
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/management", error=f"Unable to update room: {getattr(exc, 'detail', exc)}"), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message=f"Room {room_id} updated."), status_code=303)
+
+
+@app.post("/admin/management/devices/{device_id}/update")
+async def admin_update_device(
+    request: Request,
+    device_id: str,
+    name: str = Form(...),
+    device_class: str = Form(...),
+    category: str = Form(...),
+    room_id: str = Form(...),
+    unit: str = Form(""),
+):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    payload = {
+        "key": device_id,
+        "name": name.strip(),
+        "device_class": device_class.strip(),
+        "category": category.strip().lower(),
+        "room_id": room_id.strip(),
+        "unit": unit.strip(),
+    }
+    try:
+        await _catalog_put(f"/devices/{device_id}", payload)
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/management", error=f"Unable to update device: {getattr(exc, 'detail', exc)}"), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message=f"Device {device_id} updated."), status_code=303)
+
+
+@app.post("/admin/management/policies/create")
+async def admin_management_create_policy(
+    request: Request,
+    policy_id: str = Form(...),
+    room_id: str = Form(...),
+    metric: str = Form(...),
+    operator: str = Form(...),
+    value: str = Form(...),
+    target_device: str = Form(...),
+    target_state: str = Form(...),
+    priority: int = Form(1),
+):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    if operator not in ALLOWED_POLICY_OPERATORS:
+        return RedirectResponse(_message_url("/admin/management", error="Unsupported policy operator."), status_code=303)
+    payload = {
+        "policy_id": policy_id.strip(),
+        "room_id": room_id.strip(),
+        "metric": metric.strip().lower(),
+        "operator": operator,
+        "value": _normalize_policy_value(value),
+        "target_device": target_device.strip(),
+        "target_state": target_state.strip().upper(),
+        "priority": priority,
+    }
+    try:
+        await _catalog_post("/policies", payload)
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/management", error=f"Unable to create policy: {getattr(exc, 'detail', exc)}"), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message="Policy created."), status_code=303)
+
+
+@app.post("/admin/management/policies/{policy_id}/update")
+async def admin_update_policy(
+    request: Request,
+    policy_id: str,
+    metric: str = Form(...),
+    operator: str = Form(...),
+    value: str = Form(...),
+    target_device: str = Form(...),
+    target_state: str = Form(...),
+    priority: int = Form(1),
+):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    if operator not in ALLOWED_POLICY_OPERATORS:
+        return RedirectResponse(_message_url("/admin/management", error="Unsupported policy operator."), status_code=303)
+    payload = {
+        "metric": metric.strip().lower(),
+        "operator": operator,
+        "value": _normalize_policy_value(value),
+        "target_device": target_device.strip(),
+        "target_state": target_state.strip().upper(),
+        "priority": priority,
+    }
+    try:
+        await _catalog_put(f"/policies/{policy_id}", payload)
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/management", error=f"Unable to update policy: {getattr(exc, 'detail', exc)}"), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message=f"Policy {policy_id} updated."), status_code=303)
+
+
+@app.post("/admin/management/policies/{policy_id}/delete")
+async def admin_management_delete_policy(request: Request, policy_id: str):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    try:
+        await _catalog_delete(f"/policies/{policy_id}")
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/management", error=f"Unable to delete policy: {getattr(exc, 'detail', exc)}"), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message=f"Policy {policy_id} deleted."), status_code=303)
 
 
 @app.post("/admin/users/create")

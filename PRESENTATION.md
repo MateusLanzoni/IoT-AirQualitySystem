@@ -490,7 +490,7 @@ STEP 3: LOGGING DECISION
         │             │
         v             v
    TELEGRAM        DASHBOARD
-   
+
 STEP 4A: TELEGRAM NOTIFICATION
 ┌──────────────────────────────────────┐
 │ Telegram Notifier receives decision   │
@@ -568,7 +568,7 @@ USER BROWSER
     <span>Automation targets</span>
     <span class="tag">room {{ default_room_id }}</span>
   </div>
-  
+
   <!-- INPUT FORM -->
   <form method="post" action="/admin/targets/create">
     <div class="policy-grid">
@@ -591,7 +591,7 @@ USER BROWSER
       <button>Save target policy</button>
     </div>
   </form>
-  
+
   <!-- DISPLAY LIST -->
   {% for policy in room_targets %}
   <div class="policy-row">
@@ -611,7 +611,7 @@ async def admin_create_target(request, room_id, metric, operator, value, ...):
     # Validate inputs
     if operator not in {">", "<", ">=", "<=", "=="}:
         raise HTTPException(status_code=400)
-    
+
     # Create policy payload
     payload = {
         "policy_id": auto_generate_id(),
@@ -623,13 +623,13 @@ async def admin_create_target(request, room_id, metric, operator, value, ...):
         "target_state": target_state.upper(),
         "priority": priority
     }
-    
+
     # POST to Catalog Service
     response = await http_client.post(
         f"{catalog_url}/policies",
         json=payload
     )
-    
+
     # Redirect with success message
     return redirect("/admin/env?message=Target+saved")
 ```
@@ -754,12 +754,12 @@ DECISION ENGINE EVALUATES
     ✓ 31.2 > 28? YES → Create candidate: fan_1 = ON (p=3)
   Applies energy mode filter
   Sorts by priority: [ac_1 (p=2), fan_1 (p=3)]
-  
+
   STATE MACHINE:
     ac_1 current=OFF, target=ON
     Transition: OFF → TURNING_ON
     Publish: command/ac_1 {command: TURN_ON}
-    
+
     fan_1 current=OFF, target=ON
     Transition: OFF → TURNING_ON
     Publish: command/fan_1 {command: TURN_ON}
@@ -786,11 +786,11 @@ TELEGRAM NOTIFIER RECEIVES
   Formats message:
     "🚨 AirGuard Decision - room1
      Temperature: 31.2°C (> 30°C)
-     
+
      Commands:
      - ac_1: TURN_ON → ON (reason: temperature_>_30)
      - fan_1: TURN_ON → ON (reason: temperature_>_28)
-     
+
      Energy Mode: NORMAL
      Time: 2026-08-31 14:22:00"
   Sends via Telegram Bot API

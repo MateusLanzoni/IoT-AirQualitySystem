@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirGuard Management</title>
+  <style>
+    :root {
+      --bg: #08111b;
+      --panel: rgba(12, 20, 32, 0.9);
+      --panel-2: rgba(18, 28, 44, 0.9);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --line: rgba(149, 180, 216, 0.18);
+      --accent: #49d6a7;
+      --blue: #79a7ff;
+      --bad: #ff7d7d;
+      --good: #67e8a4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: radial-gradient(circle at top left, rgba(121, 167, 255, .16), transparent 35%), linear-gradient(180deg, #08111b, #050b12);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+    }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 18px 48px; }
+    header, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 20px; margin-bottom: 18px; }
+    header strong { font-family: Georgia, serif; font-size: 1.1rem; }
+    nav { display: flex; gap: 10px; flex-wrap: wrap; }
+    a, button { font: inherit; }
+    .link, .button { border: 1px solid rgba(121, 167, 255, .25); border-radius: 10px; padding: 9px 13px; color: var(--text); text-decoration: none; background: rgba(121, 167, 255, .12); cursor: pointer; }
+    .button.secondary, .link.secondary { background: rgba(255, 255, 255, .04); border-color: var(--line); }
+    h1, h2 { font-family: Georgia, serif; margin: 0; }
+    h1 { font-size: clamp(2rem, 4vw, 3.1rem); margin: 22px 0 10px; }
+    h2 { font-size: 1.45rem; }
+    .intro { color: var(--muted); line-height: 1.6; margin: 0 0 22px; max-width: 800px; }
+    .notice { padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; color: var(--good); background: rgba(103, 232, 164, .08); border: 1px solid rgba(103, 232, 164, .2); }
+    .notice.bad { color: var(--bad); background: rgba(255, 125, 125, .08); border-color: rgba(255, 125, 125, .2); }
+    .card { padding: 18px; margin-bottom: 18px; }
+    .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+    .muted, .hint { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    input, select { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; color: var(--text); background: rgba(3, 8, 14, .65); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .rows { display: grid; gap: 12px; margin-top: 18px; }
+    .row { display: grid; gap: 12px; padding: 14px; border: 1px solid rgba(255,255,255,.07); border-radius: 13px; background: rgba(255,255,255,.03); }
+    .room-row { grid-template-columns: minmax(160px, .7fr) minmax(200px, 1.4fr) minmax(180px, .9fr) auto; align-items: end; }
+    .device-row { grid-template-columns: repeat(6, minmax(100px, 1fr)) auto; align-items: end; }
+    .policy-row { grid-template-columns: minmax(150px, .7fr) repeat(5, minmax(100px, 1fr)) auto; align-items: end; }
+    .row-title { font-weight: 700; }
+    .delete { background: rgba(255, 125, 125, .12); border-color: rgba(255, 125, 125, .25); }
+    .create { background: rgba(73, 214, 167, .1); }
+    @media (max-width: 1000px) { .room-row, .device-row, .policy-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } .room-row, .device-row, .policy-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <strong>AirGuard Administration</strong>
+      <nav>
+        <a class="link secondary" href="{{ dashboard_url }}">Home dashboard</a>
+        <a class="link secondary" href="{{ admin_env_url }}">Environment and users</a>
+        <a class="link secondary" href="{{ logout_url }}">Log out</a>
+      </nav>
+    </header>
+
+    {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+    {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+    <h1>Rooms, Devices and Policies</h1>
+    <p class="intro">Use this page to maintain the Catalog Service model used by the Decision Service: assign devices to rooms, update device metadata, and define the objectives that trigger actuator commands.</p>
+
+    <section class="card">
+      <div class="card-head"><h2>Create room</h2><span class="muted">A room groups sensors, actuators, and decision policies.</span></div>
+      <form method="post" action="/admin/management/rooms/create">
+        <div class="grid">
+          <div class="field"><label for="new-room-id">Room id</label><input id="new-room-id" name="room_id" placeholder="room2" required></div>
+          <div class="field"><label for="new-room-devices">Device ids</label><input id="new-room-devices" name="device_ids" placeholder="temp_2, fan_2"></div>
+          <div class="field"><label for="new-room-energy">Energy mode</label><select id="new-room-energy" name="energy_mode"><option>NORMAL</option><option>ENERGY_SAVING</option><option>COMFORT</option></select></div>
+          <div class="field"><label for="new-room-start">Schedule</label><div class="grid"><input id="new-room-start" name="schedule_start" value="08:00" type="time"><input name="schedule_end" value="23:00" type="time"></div></div>
+        </div>
+        <div class="actions"><button class="button create" type="submit">Create room</button></div>
+      </form>
+
+      <div class="rows">
+        {% for room in rooms %}
+        <form class="row room-row" method="post" action="/admin/management/rooms/{{ room.room_id }}/update">
+          <div><div class="row-title">{{ room.room_id }}</div><div class="hint">Update assignment</div></div>
+          <div class="field"><label>Device ids</label><input name="device_ids" value="{{ room.device_ids|join(', ') }}"></div>
+          <div class="field"><label>Energy mode</label><select name="energy_mode"><option {% if room.energy_mode == 'NORMAL' %}selected{% endif %}>NORMAL</option><option {% if room.energy_mode == 'ENERGY_SAVING' %}selected{% endif %}>ENERGY_SAVING</option><option {% if room.energy_mode == 'COMFORT' %}selected{% endif %}>COMFORT</option></select></div>
+          <div class="actions"><button class="button" type="submit">Save room</button></div>
+          <input type="hidden" name="schedule_start" value="{{ room.schedule.start if room.schedule else '08:00' }}">
+          <input type="hidden" name="schedule_end" value="{{ room.schedule.end if room.schedule else '23:00' }}">
+        </form>
+        {% else %}<div class="muted">No rooms found.</div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Device models</h2><span class="muted">Edit existing device metadata and room assignment.</span></div>
+      <div class="rows">
+        {% for device in devices %}
+        <form class="row device-row" method="post" action="/admin/management/devices/{{ device.key }}/update">
+          <div class="field"><label>Device id</label><input value="{{ device.key }}" disabled></div>
+          <div class="field"><label>Name</label><input name="name" value="{{ device.name }}" required></div>
+          <div class="field"><label>Class / type</label><input name="device_class" value="{{ device.device_class }}" required></div>
+          <div class="field"><label>Category</label><select name="category"><option {% if device.category == 'sensor' %}selected{% endif %}>sensor</option><option {% if device.category == 'actuator' %}selected{% endif %}>actuator</option></select></div>
+          <div class="field"><label>Room</label><select name="room_id">{% for room in rooms %}<option value="{{ room.room_id }}" {% if room.room_id == device.room_id %}selected{% endif %}>{{ room.room_id }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Unit</label><input name="unit" value="{{ device.unit }}"></div>
+          <div class="actions"><button class="button" type="submit">Save device</button></div>
+        </form>
+        {% else %}<div class="muted">No devices found.</div>{% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Decision policies</h2><span class="muted">These objectives are evaluated by the Decision Service.</span></div>
+      <form method="post" action="/admin/management/policies/create">
+        <div class="grid">
+          <div class="field"><label>Policy id</label><input name="policy_id" placeholder="temperature_fan_30" required></div>
+          <div class="field"><label>Room</label><select name="room_id">{% for room in rooms %}<option>{{ room.room_id }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Metric</label><select name="metric"><option>temperature</option><option>humidity</option><option>co2</option><option>pm25</option></select></div>
+          <div class="field"><label>Operator</label><select name="operator"><option>&gt;</option><option>&lt;</option><option>&gt;=</option><option>&lt;=</option><option>==</option></select></div>
+          <div class="field"><label>Threshold</label><input name="value" type="number" step="0.1" value="30" required></div>
+          <div class="field"><label>Target device</label><select name="target_device">{% for device in devices if device.category == 'actuator' %}<option>{{ device.key }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Target state</label><input name="target_state" value="ON" required></div>
+          <div class="field"><label>Priority</label><input name="priority" type="number" min="1" value="1" required></div>
+        </div>
+        <div class="actions"><button class="button create" type="submit">Create policy</button></div>
+      </form>
+
+      <div class="rows">
+        {% for policy in policies %}
+        <form class="row policy-row" method="post" action="/admin/management/policies/{{ policy.policy_id }}/update">
+          <div><div class="row-title">{{ policy.policy_id }}</div><div class="hint">Room: {{ policy.room_id }}</div></div>
+          <div class="field"><label>Metric</label><select name="metric"><option {% if policy.metric == 'temperature' %}selected{% endif %}>temperature</option><option {% if policy.metric == 'humidity' %}selected{% endif %}>humidity</option><option {% if policy.metric == 'co2' %}selected{% endif %}>co2</option><option {% if policy.metric == 'pm25' %}selected{% endif %}>pm25</option></select></div>
+          <div class="field"><label>Operator</label><select name="operator"><option {% if policy.operator == '>' %}selected{% endif %}>&gt;</option><option {% if policy.operator == '<' %}selected{% endif %}>&lt;</option><option {% if policy.operator == '>=' %}selected{% endif %}>&gt;=</option><option {% if policy.operator == '<=' %}selected{% endif %}>&lt;=</option><option {% if policy.operator == '==' %}selected{% endif %}>==</option></select></div>
+          <div class="field"><label>Threshold</label><input name="value" type="number" step="0.1" value="{{ policy.value }}" required></div>
+          <div class="field"><label>Device</label><select name="target_device">{% for device in devices if device.category == 'actuator' %}<option {% if device.key == policy.target_device %}selected{% endif %}>{{ device.key }}</option>{% endfor %}</select></div>
+          <div class="field"><label>State</label><input name="target_state" value="{{ policy.target_state }}" required></div>
+          <div class="field"><label>Priority</label><input name="priority" type="number" min="1" value="{{ policy.priority }}" required></div>
+          <div class="actions"><button class="button" type="submit">Update</button><button class="button delete" type="submit" formaction="/admin/management/policies/{{ policy.policy_id }}/delete" formmethod="post">Delete</button></div>
+        </form>
+        {% else %}<div class="muted">No policies found.</div>{% endfor %}
+      </div>
+    </section>
+  </div>
+</body>
+</html>
