@@ -55,6 +55,26 @@
     .row-title { font-weight: 700; }
     .delete { background: rgba(255, 125, 125, .12); border-color: rgba(255, 125, 125, .25); }
     .create { background: rgba(73, 214, 167, .1); }
+    body.light {
+      --bg: #fffaf0;
+      --panel: rgba(255, 255, 255, .94);
+      --panel-2: #fff4d6;
+      --text: #263b46;
+      --muted: #667b82;
+      --line: rgba(38, 59, 70, .14);
+      --accent: #13a889;
+      --blue: #e78d4e;
+      --bad: #d9675e;
+      --good: #159b78;
+      background: radial-gradient(circle at 8% 0%, rgba(255, 210, 106, .3), transparent 30%), radial-gradient(circle at 92% 8%, rgba(93, 214, 190, .22), transparent 28%), linear-gradient(180deg, #fffdf7 0%, #fff8e9 55%, #f4fbf5 100%);
+    }
+    body.light header, body.light .card { background: var(--panel); box-shadow: 0 18px 42px rgba(230, 154, 85, .12); }
+    body.light input, body.light select { color: var(--text); background: #fffdf7; }
+    body.light .row { background: rgba(255, 255, 255, .66); border-color: var(--line); }
+    body.light .button, body.light .link { color: #27474a; background: rgba(255, 209, 102, .3); border-color: rgba(225, 166, 54, .35); }
+    body.light .button.create { background: #ffd166; border-color: #efb94e; }
+    body.light .button.delete { color: #8b3d36; background: rgba(230, 108, 98, .14); border-color: rgba(230, 108, 98, .28); }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; color: var(--text); background: var(--panel); cursor: pointer; font-weight: 700; }
     @media (max-width: 1000px) { .room-row, .device-row, .policy-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 620px) { .grid { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } .room-row, .device-row, .policy-row { grid-template-columns: 1fr; } }
   </style>
@@ -150,6 +170,24 @@
         {% else %}<div class="muted">No policies found.</div>{% endfor %}
       </div>
     </section>
+    <div style="text-align:center;"><button class="theme-toggle" id="theme-toggle" type="button">White mode</button></div>
   </div>
+  <script>
+    (() => {
+      const key = 'airguard-theme';
+      const button = document.getElementById('theme-toggle');
+      const applyTheme = (theme) => {
+        const light = theme === 'light';
+        document.body.classList.toggle('light', light);
+        button.textContent = light ? 'Dark mode' : 'White mode';
+      };
+      applyTheme(localStorage.getItem(key) || 'dark');
+      button.addEventListener('click', () => {
+        const next = document.body.classList.contains('light') ? 'dark' : 'light';
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      });
+    })();
+  </script>
 </body>
 </html>

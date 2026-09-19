@@ -249,6 +249,31 @@
     .compact .compact-sample { background: var(--panel); padding:14px; border-radius:12px }
     .compact .rooms-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px }
     .compact .room-card { background: rgba(255,255,255,0.02); padding:10px; border-radius:10px }
+
+    body.light {
+      --bg: #fffaf0;
+      --panel: rgba(255, 255, 255, 0.92);
+      --panel-2: #fff4d6;
+      --text: #263b46;
+      --muted: #667b82;
+      --line: rgba(38, 59, 70, 0.14);
+      --accent: #13a889;
+      --accent-2: #f29b5b;
+      --warn: #e9a227;
+      --bad: #e66c62;
+      --good: #159b78;
+      --shadow: 0 20px 50px rgba(231, 154, 76, 0.16);
+      background: radial-gradient(circle at 8% 0%, rgba(255, 210, 106, .28), transparent 30%), radial-gradient(circle at 90% 8%, rgba(93, 214, 190, .22), transparent 28%), linear-gradient(180deg, #fffdf7 0%, #fff8e9 55%, #f4fbf5 100%);
+    }
+    body.light .hero-card { background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(255,242,205,.82)); }
+    body.light .glass-card, body.light .status-card { background: var(--panel); }
+    body.light .status-card { box-shadow: 0 8px 24px rgba(230, 154, 85, .08); }
+    body.light .list-row, body.light .value-card { background: rgba(255,255,255,.62); border-color: var(--line); }
+    body.light .action-link { color: #173d3b; background: #ffd166; border-color: #efb94e; }
+    body.light .tag { color: #8a4f2e; background: rgba(242, 155, 91, .16); border-color: rgba(242, 155, 91, .28); }
+    body.light .table th, body.light .table td { border-color: var(--line); }
+    body.light.compact { --panel: rgba(255,255,255,.9); --panel-2: #e1f7ee; --text: #21433f; --muted: #5f8076; --line: rgba(33,67,63,.14); background: linear-gradient(180deg, #f4fff9, #fff8e8); }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; color: var(--text); background: var(--panel); cursor: pointer; font-weight: 700; }
   </style>
 </head>
 <body class="{{ 'compact' if not is_admin else '' }}">
@@ -503,7 +528,25 @@
     {% endif %}
     <footer class="site-footer" style="margin-top:32px;padding:18px 12px;color:var(--muted);font-size:13px;border-top:1px solid rgba(255,255,255,0.02);text-align:center;">
       <strong>AirGuard</strong> — IoT Air Quality System · See <a href="../README.md" style="color:var(--muted);text-decoration:underline;">README</a> for details.
+      <br><button class="theme-toggle" id="theme-toggle" type="button">White mode</button>
     </footer>
   </div>
+  <script>
+    (() => {
+      const key = 'airguard-theme';
+      const button = document.getElementById('theme-toggle');
+      const applyTheme = (theme) => {
+        const light = theme === 'light';
+        document.body.classList.toggle('light', light);
+        button.textContent = light ? 'Dark mode' : 'White mode';
+      };
+      applyTheme(localStorage.getItem(key) || 'dark');
+      button.addEventListener('click', () => {
+        const next = document.body.classList.contains('light') ? 'dark' : 'light';
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      });
+    })();
+  </script>
 </body>
 </html>
