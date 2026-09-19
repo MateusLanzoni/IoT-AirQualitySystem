@@ -72,7 +72,7 @@ class StateStore:
             return {room_id: dict(entry) for room_id, entry in self._metrics_store.items()}
 
     # ── Config cache ──────────────────────────────────────────────────────────
-  
+
     def get_config(self, room_id: str) -> Optional[dict]:
         ttl = config.get("cache", {}).get("room_config_ttl", 3600)
         with self._lock:

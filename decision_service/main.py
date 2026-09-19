@@ -101,8 +101,8 @@ class _DummyPublisher:
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Decision Service", 
-    version="1.0.0", 
+    title="Decision Service",
+    version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -141,17 +141,17 @@ async def manual_trigger(room_id: str, body: dict):
     await process_sensor_event(body, config, _mqtt_pub)
     return {"code": 0, "msg": "trigger processed", "data": None}
 
-    
+
 @app.get("/mock/start")
 def mock():
-    """Return a mock service object for testing.""" 
+    """Return a mock service object for testing."""
     mock_service = MockService()
     mock_service.run(5, mqtt_pub=_mqtt_pub)
     return 0
 
 @app.get("/mock/stop")
 def mock():
-    """Return a mock service object for testing.""" 
+    """Return a mock service object for testing."""
     mock_service = MockService()
     mock_service.stop()
     return 0

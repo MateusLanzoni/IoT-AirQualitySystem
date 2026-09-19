@@ -6,7 +6,7 @@
     "endpoint": "http://decision-service:8002",
     "health_endpoint": "/health",
     "status": "online",
-    "last_seen": 1789841147,
+    "last_seen": 1789841168,
     "load": 0
   },
   {
@@ -16,7 +16,7 @@
     "endpoint": "http://prediction-service:8003",
     "health_endpoint": "/health",
     "status": "online",
-    "last_seen": 1789841147
+    "last_seen": 1789841168
   },
   {
     "service_id": "thingspeak_adaptor_api",
@@ -25,7 +25,7 @@
     "endpoint": "http://adaptor-service:8000",
     "health_endpoint": "/health",
     "status": "online",
-    "last_seen": 1789841147
+    "last_seen": 1789841168
   },
   {
     "service_id": "thingspeak-adaptor",
@@ -34,6 +34,6 @@
     "endpoint": "http://adaptor-service:8000",
     "health_endpoint": "/health",
     "status": "online",
-    "last_seen": 1789841147
+    "last_seen": 1789841168
   }
 ]

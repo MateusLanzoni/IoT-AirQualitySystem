@@ -43,14 +43,14 @@ class MQTTGateway:
 
                 # Start listening to command topic
                 await self._listen_to_commands()
-        
+
         except aiomqtt.MqttError as e:
             _LOGGER.error(f"Mosquitto connection error: {e}")
             # Retry logic placeholder(for now I didn't implement)
 
         except Exception as e:
             _LOGGER.error(f"Error in MQTT Gateway: {e}")
-    
+
     # Outbound flow: internal event bus -> mosquitto( external )
     async def _on_state_changed(self, event):
         """Triggered when a sensor or actuator changes state."""
@@ -59,7 +59,7 @@ class MQTTGateway:
         if not self.client:
             _LOGGER.warning("Dropping telemetry for %s because MQTT is not connected", event.data.get("device_id"))
             return
-        
+
         try:
             raw_payload = {
                 "device_id": event.data["device_id"],
@@ -109,9 +109,9 @@ class MQTTGateway:
                 # This will NOT excute the command, only pass the dict to bus.
                 await self.bus.async_fire(
                     EVENT_COMMAND_RECEIVED,
-                    validated_cmd.model_dump() 
+                    validated_cmd.model_dump()
                 )
-            
+
             except json.JSONDecodeError:
                 _LOGGER.warning(f"Wrong formed JSON:{message.topic.value}")
             except ValidationError as e:
