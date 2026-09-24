@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirGuard Dashboard</title>
+  <style>
+    :root {
+      --bg: #08111b;
+      --panel: rgba(12, 20, 32, 0.82);
+      --panel-2: rgba(18, 28, 44, 0.88);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --line: rgba(149, 180, 216, 0.18);
+      --accent: #49d6a7;
+      --accent-2: #79a7ff;
+      --warn: #ffbf69;
+      --bad: #ff7d7d;
+      --good: #67e8a4;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 80% 10%, rgba(73, 214, 167, 0.13), transparent 28%),
+        linear-gradient(180deg, #08111b 0%, #09131f 52%, #050b12 100%);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+
+    /* Compact (normal user) color overrides to make the view distinct */
+    .compact {
+      --panel: rgba(3, 46, 38, 0.88); /* darker teal */
+      --panel-2: rgba(6, 62, 50, 0.92);
+      --accent: #4ad6a7; /* teal accent */
+      --accent-2: #3fb3a0;
+      --text: #e9fff7;
+      --muted: #9ed7c6;
+      --line: rgba(78, 164, 146, 0.14);
+    }
+
+    /* Compact page background */
+    body.compact {
+      background: linear-gradient(180deg, #022c26 0%, #031916 60%);
+    }
+
+    /* Header/title */
+    .page-header { margin-bottom: 14px; }
+    .page-header h1 { margin: 6px 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(1.6rem, 4vw, 3rem); line-height: 1; }
+    .subtitle { color: var(--muted); margin: 0 0 6px; }
+
+    /* Top row: status (left) and sample (right) */
+    .top-row { display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; margin-bottom: 18px; }
+
+    .hero-card, .glass-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      padding: 18px;
+    }
+
+    /* Improved hero styling */
+    .hero-card {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 18px;
+      padding: 28px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    }
+
+    .hero-left { flex: 1 1 60%; }
+    .hero-right { width: 220px; display:flex; flex-direction:column; gap:12px; align-items:flex-end }
+
+    .hero-metrics { display:flex; gap:18px; align-items:center }
+    .metric { background: transparent; padding: 6px 8px; border-radius: 10px }
+    .metric .label { color: var(--muted); font-size:13px }
+    .metric .value { font-size:20px; font-weight:800 }
+
+    .action-link { background: var(--accent); color: #04221a; border: none; padding: 10px 16px; border-radius: 999px }
+
+    .cards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+    .status-card { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(10,18,30,0.7); }
+    .status-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px }
+    .status-dot { width:10px; height:10px; border-radius:999px; background:var(--good); }
+    .status-card.offline .status-dot { background:var(--bad); }
+    .status-card.degraded .status-dot { background:var(--warn); }
+
+    .value-box { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+    .value-card { padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,0.02); }
+    .value-card .k { color: var(--muted); font-size:12px; text-transform:uppercase; }
+    .value-card .v { font-size:20px; font-weight:800 }
+
+    .card-title { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-weight:700 }
+    .pill { padding:4px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-size:12px }
+
+    .section-grid { display: grid; grid-template-columns: 1fr 360px; gap: 18px; margin-bottom:18px }
+
+    @media (max-width: 900px) {
+      .top-row, .section-grid { grid-template-columns: 1fr; }
+      .value-box { grid-template-columns: repeat(2, 1fr); }
+      .cards-grid { grid-template-columns: 1fr; }
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .list-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .list-row .muted { color: var(--muted); font-size: 12px; }
+    .list-row .strong { font-weight: 700; }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 18px;
+    }
+
+    .table th, .table td {
+      text-align: left;
+      padding: 12px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 14px;
+    }
+
+    .table th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(121, 167, 255, 0.12);
+      color: #b9d0ff;
+      border: 1px solid rgba(121, 167, 255, 0.18);
+      font-size: 12px;
+    }
+
+    .value-box {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .value-card {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .value-card .k {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .value-card .v {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .room-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .room-chip .meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .thingspeak-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .thingspeak-field {
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .thingspeak-field .field-name {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .thingspeak-field .field-value {
+      margin-top: 4px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 14px;
+      text-decoration: none;
+      color: var(--text);
+      background: rgba(121, 167, 255, 0.12);
+      border: 1px solid rgba(121, 167, 255, 0.2);
+      font-weight: 700;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1080px) {
+      .hero, .section-grid, .cards-grid, .value-box { grid-template-columns: 1fr; }
+      .hero-metrics { grid-template-columns: 1fr; }
+    }
+    /* Compact mode styles */
+    .compact .cards-grid, .compact .section-grid { display: none; }
+    .compact .side-stack { display: none; }
+    .compact .compact-panel { display: grid; gap: 12px; margin-bottom: 18px; }
+    .compact .compact-status { display:flex; gap:8px; flex-wrap:wrap }
+    .compact .compact-status-item { background: var(--panel-2); padding:8px 10px; border-radius:10px; display:flex; align-items:center; gap:8px }
+    .compact .compact-status-item .status-dot { width:10px; height:10px; border-radius:999px; display:inline-block; margin-right:6px }
+    .compact .compact-status-item .status-dot.online { background: var(--good); box-shadow: 0 0 0 6px rgba(103, 232, 164, 0.08); }
+    .compact .compact-status-item .status-dot.offline { background: var(--bad); box-shadow: 0 0 0 6px rgba(255, 125, 125, 0.08); }
+    .compact .compact-sample { background: var(--panel); padding:14px; border-radius:12px }
+    .compact .rooms-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px }
+    .compact .room-card { background: rgba(255,255,255,0.02); padding:10px; border-radius:10px }
+
+    body.light {
+      --bg: #fffaf0;
+      --panel: rgba(255, 255, 255, 0.92);
+      --panel-2: #fff4d6;
+      --text: #263b46;
+      --muted: #667b82;
+      --line: rgba(38, 59, 70, 0.14);
+      --accent: #13a889;
+      --accent-2: #f29b5b;
+      --warn: #e9a227;
+      --bad: #e66c62;
+      --good: #159b78;
+      --shadow: 0 20px 50px rgba(231, 154, 76, 0.16);
+      background: radial-gradient(circle at 8% 0%, rgba(255, 210, 106, .28), transparent 30%), radial-gradient(circle at 90% 8%, rgba(93, 214, 190, .22), transparent 28%), linear-gradient(180deg, #fffdf7 0%, #fff8e9 55%, #f4fbf5 100%);
+    }
+    body.light .hero-card { background: linear-gradient(135deg, rgba(255,255,255,.96), rgba(255,242,205,.82)); }
+    body.light .glass-card, body.light .status-card { background: var(--panel); }
+    body.light .status-card { box-shadow: 0 8px 24px rgba(230, 154, 85, .08); }
+    body.light .list-row, body.light .value-card { background: rgba(255,255,255,.62); border-color: var(--line); }
+    body.light .action-link { color: #173d3b; background: #ffd166; border-color: #efb94e; }
+    body.light .tag { color: #8a4f2e; background: rgba(242, 155, 91, .16); border-color: rgba(242, 155, 91, .28); }
+    body.light .table th, body.light .table td { border-color: var(--line); }
+    body.light.compact { --panel: rgba(255,255,255,.9); --panel-2: #e1f7ee; --text: #21433f; --muted: #5f8076; --line: rgba(33,67,63,.14); background: linear-gradient(180deg, #f4fff9, #fff8e8); }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; color: var(--text); background: var(--panel); cursor: pointer; font-weight: 700; }
+  </style>
+</head>
+<body class="{{ 'compact' if not is_admin else '' }}">
+  <div class="wrap">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div>
+          <h1>AirGuard System Overview</h1>
+          <p class="subtitle">Room: {{ room_id }} · Services: {{ services|length }} · Recent telemetry points: {{ history|length }}</p>
+        </div>
+        <div>
+          <a class="action-link" href="/logout">Log out</a>
+        </div>
+      </div>
+    </header>
+    {% if not is_admin %}
+    <section class="compact-panel">
+      <div class="compact-status">
+        {% for key, item in status_cards.items() %}
+        <div class="compact-status-item">
+          <span class="status-dot {% if item.status|lower == 'online' %}online{% else %}offline{% endif %}"></span>
+          <div>
+            <div class="strong">{{ item.label }}</div>
+            <div class="muted">{{ item.status }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="compact-sample">
+        <div class="card-title"><span>Last available sample</span><span class="pill">History API</span></div>
+        <div class="value-box">
+          <div class="value-card"><div class="k">Temp</div><div class="v">{{ latest.get('field2', '-') }}</div></div>
+          <div class="value-card"><div class="k">Humidity</div><div class="v">{{ latest.get('field3', '-') }}</div></div>
+          <div class="value-card"><div class="k">CO2</div><div class="v">{{ latest.get('field4', '-') }}</div></div>
+          <div class="value-card"><div class="k">PM2.5</div><div class="v">{{ latest.get('field5', '-') }}</div></div>
+        </div>
+      </div>
+
+
+    </section>
+    {% endif %}
+
+    {% if is_admin %}
+    <section class="top-row">
+      <div class="glass-card">
+        <div class="card-title">
+          <span>System status</span>
+          <span class="pill">Auto-collected</span>
+        </div>
+        <div class="list">
+          {% for key, item in status_cards.items() %}
+          <div class="list-row">
+            <div>
+              <div class="strong">{{ item.label }}</div>
+              <div class="muted">{{ key }}</div>
+            </div>
+            <div class="tag">{{ item.status }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-title"><span>Last available sample</span><span class="pill">History API</span></div>
+        <div class="value-box">
+          <div class="value-card"><div class="k">Temp</div><div class="v">{{ latest.get('field2', '-') }}</div></div>
+          <div class="value-card"><div class="k">Humidity</div><div class="v">{{ latest.get('field3', '-') }}</div></div>
+          <div class="value-card"><div class="k">CO2</div><div class="v">{{ latest.get('field4', '-') }}</div></div>
+          <div class="value-card"><div class="k">PM2.5</div><div class="v">{{ latest.get('field5', '-') }}</div></div>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if is_admin %}
+    <section class="hero">
+      <div class="hero-card">
+        <div class="hero-metrics">
+          <div class="metric">
+            <div class="label">Room</div>
+            <div class="value">{{ room_id }}</div>
+          </div>
+          <div class="metric">
+            <div class="label">Services discovered</div>
+            <div class="value">{{ services|length }}</div>
+          </div>
+          <div class="metric">
+            <div class="label">Recent telemetry points</div>
+            <div class="value">{{ history|length }}</div>
+          </div>
+        </div>
+        <div class="actions">
+          <a class="action-link" href="/admin/management">Manage rooms, devices and policies</a>
+          <a class="action-link" href="{{ admin_url }}">Open admin env page</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="cards-grid">
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Catalog</span><span class="status-dot"></span></div>
+        <div class="muted">Room model, devices, policies, and service registry.</div>
+      </article>
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Prediction</span><span class="status-dot"></span></div>
+        <div class="muted">Forecast payload consumed by the decision pipeline.</div>
+      </article>
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Decision</span><span class="status-dot"></span></div>
+        <div class="muted">In-memory state store and command publication status.</div>
+      </article>
+      <article class="status-card">
+        <div class="status-top"><span class="status-name">Adaptor</span><span class="status-dot"></span></div>
+        <div class="muted">ThingSpeak history and MQTT bridge.</div>
+      </article>
+    </section>
+
+    <section class="section-grid">
+      <div class="glass-card">
+        <div class="card-title">
+          <span>Room snapshot</span>
+          <span class="pill">{{ room.get('energy_mode', 'NORMAL') }}</span>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>Category</th>
+              <th>Class</th>
+              <th>Unit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for device in room.get('sensors', []) %}
+            <tr>
+              <td>{{ device.name }}</td>
+              <td><span class="tag">sensor</span></td>
+              <td>{{ device.device_class }}</td>
+              <td>{{ device.unit }}</td>
+            </tr>
+            {% endfor %}
+            {% for device in room.get('actuators', []) %}
+            <tr>
+              <td>{{ device.name }}</td>
+              <td><span class="tag">actuator</span></td>
+              <td>{{ device.device_class }}</td>
+              <td>{{ device.unit }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-title">
+          <span>Prediction payload</span>
+          <span class="pill">/prediction/{{ room_id }}</span>
+        </div>
+        <div class="list">
+          {% if prediction.get('predictions') %}
+            {% for metric, info in prediction.get('predictions').items() %}
+            <div class="list-row">
+              <div>
+                <div class="strong">{{ metric }}</div>
+                <div class="muted">{{ info.generated_at }}</div>
+              </div>
+              <div class="tag">{{ info.value }}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="list-row">
+              <div>
+                <div class="strong">No prediction data yet</div>
+                <div class="muted">Start the prediction service to see forecast cards here.</div>
+              </div>
+              <div class="tag">offline</div>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="footer-note">
+          Dashboard backend URL: {{ service_urls.catalog }} | {{ service_urls.prediction }} | {{ service_urls.decision }} | {{ service_urls.adaptor }}
+        </div>
+      </div>
+    </section>
+
+    <section class="glass-card">
+      <div class="card-title">
+        <span>ThingSpeak rooms</span>
+        <span class="pill">/api/thingspeak-rooms</span>
+      </div>
+      <div class="list">
+        {% if thingspeak_rooms %}
+          {% for item in thingspeak_rooms %}
+          <div class="list-row">
+            <div>
+              <div class="strong room-chip">
+                <span>{{ item.room_id }}</span>
+                <span class="tag">{{ item.kind }}</span>
+              </div>
+              <div class="muted">Channel {{ item.channel_id }}{% if item.source_topic %} · {{ item.source_topic }}{% endif %}</div>
+              {% if item.telemetry %}
+              <div class="thingspeak-fields">
+                {% for field in item.telemetry %}
+                <div class="thingspeak-field">
+                  <div class="field-name">{{ field.field }}</div>
+                  <div class="field-value">{{ field.value }}</div>
+                  {% if field.timestamp %}<div class="muted">{{ field.timestamp }}</div>{% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              <div class="muted">{{ item.history_points }} recent telemetry points</div>
+              {% endif %}
+            </div>
+            <div class="tag">{{ item.fields|length }} fields</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="list-row">
+            <div>
+              <div class="strong">No ThingSpeak rooms discovered</div>
+              <div class="muted">Mount the adaptor config or set ADAPTOR_CONFIG_PATH.</div>
+            </div>
+            <div class="tag">offline</div>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="glass-card">
+      <div class="card-title">
+        <span>Decision state store</span>
+        <span class="pill">/status</span>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Device</th>
+            <th>State</th>
+            <th>Last action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for room_name, devices in decision_states.items() %}
+            {% for device_name, entry in devices.items() %}
+            <tr>
+              <td>{{ room_name }}</td>
+              <td>{{ device_name }}</td>
+              <td><span class="tag">{{ entry.state }}</span></td>
+              <td>{{ entry.last_action_time }}</td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+          {% if not decision_states %}
+          <tr>
+            <td colspan="4">No actuator decisions have been stored yet.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+    <footer class="site-footer" style="margin-top:32px;padding:18px 12px;color:var(--muted);font-size:13px;border-top:1px solid rgba(255,255,255,0.02);text-align:center;">
+      <strong>AirGuard</strong> — IoT Air Quality System · See <a href="../README.md" style="color:var(--muted);text-decoration:underline;">README</a> for details.
+      <br><button class="theme-toggle" id="theme-toggle" type="button">White mode</button>
+    </footer>
+  </div>
+  <script>
+    (() => {
+      const key = 'airguard-theme';
+      const button = document.getElementById('theme-toggle');
+      const applyTheme = (theme) => {
+        const light = theme === 'light';
+        document.body.classList.toggle('light', light);
+        button.textContent = light ? 'Dark mode' : 'White mode';
+      };
+      applyTheme(localStorage.getItem(key) || 'dark');
+      button.addEventListener('click', () => {
+        const next = document.body.classList.contains('light') ? 'dark' : 'light';
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      });
+    })();
+  </script>
+</body>
+</html>

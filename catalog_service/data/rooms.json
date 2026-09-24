@@ -1,0 +1,11 @@
+[
+  {
+    "room_id": "room1",
+    "device_ids": ["temp_1", "co2_1", "humi_1", "ac_1", "fan_1", "window_1"],
+    "energy_mode": "NORMAL",
+    "schedule": {
+      "start": "08:00",
+      "end": "23:00"
+    }
+  }
+]

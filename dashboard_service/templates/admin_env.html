@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AirGuard Admin Env</title>
+  <style>
+    :root {
+      --bg: #08111b;
+      --panel: rgba(12, 20, 32, 0.82);
+      --panel-2: rgba(18, 28, 44, 0.88);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --line: rgba(149, 180, 216, 0.18);
+      --accent: #49d6a7;
+      --accent-2: #79a7ff;
+      --warn: #ffbf69;
+      --bad: #ff7d7d;
+      --good: #67e8a4;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 80% 10%, rgba(73, 214, 167, 0.13), transparent 28%),
+        linear-gradient(180deg, #08111b 0%, #09131f 52%, #050b12 100%);
+      font-family: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+
+    .site-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      padding: 16px 20px;
+      background: rgba(12, 20, 32, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .brand strong {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .notice {
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      font-size: 13px;
+      border: 1px solid rgba(103, 232, 164, 0.24);
+      background: rgba(73, 214, 167, 0.07);
+      color: var(--good);
+    }
+
+    .notice.bad {
+      border-color: rgba(255, 125, 125, 0.24);
+      background: rgba(255, 125, 125, 0.08);
+      color: var(--bad);
+    }
+
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .hero {
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid rgba(103, 232, 164, 0.24);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(73, 214, 167, 0.07);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 16px 0 10px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 0.96;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .pill, .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+    }
+
+    .pill {
+      padding: 6px 10px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .tag {
+      padding: 4px 10px;
+      color: #b9d0ff;
+      background: rgba(121, 167, 255, 0.12);
+      border-color: rgba(121, 167, 255, 0.18);
+    }
+
+    .card {
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+      font-weight: 700;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(3, 8, 14, 0.55);
+      color: var(--text);
+      outline: none;
+    }
+
+    .field input:focus { border-color: rgba(121, 167, 255, 0.5); }
+
+    .field .helper {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .button {
+      appearance: none;
+      border: 1px solid rgba(121, 167, 255, 0.18);
+      background: rgba(121, 167, 255, 0.14);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 11px 16px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .button.secondary { background: rgba(255, 255, 255, 0.04); }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status.ok { color: var(--good); }
+    .status.bad { color: var(--bad); }
+
+    .users-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .policy-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .policy-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .policy-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .policy-row .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .policy-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .user-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.9fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .user-row .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .user-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .mini-button {
+      appearance: none;
+      border: 1px solid rgba(121, 167, 255, 0.18);
+      background: rgba(121, 167, 255, 0.14);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 9px 12px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .mini-button.danger {
+      border-color: rgba(255, 125, 125, 0.22);
+      background: rgba(255, 125, 125, 0.12);
+    }
+
+    .mini-button.secondary {
+      border-color: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .user-create-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .footer {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+      padding: 18px 20px;
+      background: linear-gradient(135deg, rgba(73, 214, 167, 0.08), rgba(121, 167, 255, 0.08));
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      color: var(--muted);
+    }
+
+    .footer strong {
+      color: var(--text);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .footer .project {
+      color: var(--text);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.05rem;
+      line-height: 1.35;
+    }
+
+    .footer .members {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 900px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .user-row { grid-template-columns: 1fr; }
+      .user-actions { justify-content: flex-start; }
+      .user-create-grid { grid-template-columns: 1fr; }
+      .policy-grid { grid-template-columns: 1fr; }
+      .policy-row { grid-template-columns: 1fr; }
+      .policy-actions { justify-content: flex-start; }
+    }
+    body.light {
+      --bg: #fffaf0;
+      --panel: rgba(255, 255, 255, .94);
+      --panel-2: #fff4d6;
+      --text: #263b46;
+      --muted: #667b82;
+      --line: rgba(38, 59, 70, .14);
+      --accent: #13a889;
+      --accent-2: #e78d4e;
+      --warn: #e9a227;
+      --bad: #d9675e;
+      --good: #159b78;
+      --shadow: 0 18px 42px rgba(230, 154, 85, .12);
+      background: radial-gradient(circle at 8% 0%, rgba(255, 210, 106, .3), transparent 30%), radial-gradient(circle at 92% 8%, rgba(93, 214, 190, .22), transparent 28%), linear-gradient(180deg, #fffdf7 0%, #fff8e9 55%, #f4fbf5 100%);
+    }
+    body.light .site-header, body.light .hero, body.light .card, body.light .footer { background: var(--panel); }
+    body.light .field, body.light .user-row, body.light .policy-row { background: rgba(255, 255, 255, .66); border-color: var(--line); }
+    body.light .field input { color: var(--text); background: #fffdf7; }
+    body.light .button, body.light .mini-button { color: #27474a; background: rgba(255, 209, 102, .3); border-color: rgba(225, 166, 54, .35); }
+    body.light .mini-button.danger { color: #8b3d36; background: rgba(230, 108, 98, .14); border-color: rgba(230, 108, 98, .28); }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; color: var(--text); background: var(--panel); cursor: pointer; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header">
+      <div class="brand">
+        <strong>AirGuard</strong>
+        <span>Dashboard admin controls</span>
+      </div>
+      <div class="header-nav">
+        <span class="tag">Environment editor</span>
+        <a class="pill" href="{{ dashboard_url }}">Back to dashboard</a>
+        <a class="pill" href="{{ logout_url }}">Logout</a>
+      </div>
+    </header>
+
+    {% if message %}
+    <div class="notice">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="notice bad">{{ error }}</div>
+    {% endif %}
+
+    <section class="hero">
+      <span class="eyebrow">Admin Config</span>
+      <h1>Values configuration</h1>
+      <p class="subtitle">Use the admin password to change runtime credentials and connection values, then restart the affected services so they pick up the new environment.</p>
+      <div class="toolbar">
+        <span class="pill">.env file: {{ dotenv_path }}</span>
+        <a class="pill" href="{{ dashboard_url }}">Back to dashboard</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Protected settings</span>
+        <span class="tag">password: password</span>
+      </div>
+      <div class="field">
+        <label for="admin-password">Admin password</label>
+        <input id="admin-password" type="password" placeholder="Enter admin password" autocomplete="current-password">
+        <div class="helper">Required to save any changes.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Edit env values</span>
+        <span class="tag">blank = keep current</span>
+      </div>
+
+      <div class="form-grid">
+        {% for field in admin_fields %}
+        <div class="field">
+          <label for="{{ field.key }}">{{ field.label }}</label>
+          <input
+            id="{{ field.key }}"
+            data-env-key="{{ field.key }}"
+            type="{{ 'password' if field.kind == 'password' else 'text' }}"
+            value="{{ field.value }}"
+            {% if field.kind == 'password' %}placeholder="Hidden value - type a new one to replace it"{% endif %}
+            autocomplete="off"
+          >
+          <div class="helper">{{ field.key }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="actions">
+        <button class="button" type="button" onclick="saveEnv()">Save .env</button>
+        <button class="button secondary" type="button" onclick="loadCurrent()">Refresh view</button>
+      </div>
+
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>User management</span>
+        <span class="tag">owned by {{ current_user.username }}</span>
+      </div>
+      <div class="note">Normal users stay linked to this admin. Disabled users stay stored in the database but cannot log in.</div>
+
+      <form method="post" action="/admin/users/create">
+        <div class="user-create-grid">
+          <div class="field">
+            <label for="new-username">New username</label>
+            <input id="new-username" name="username" type="text" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="new-password">New password</label>
+            <input id="new-password" name="password" type="password" autocomplete="new-password" required>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="button" type="submit">Create user</button>
+        </div>
+      </form>
+
+      <div class="users-grid">
+        {% for user in managed_users %}
+        <div class="user-row">
+          <div>
+            <div><strong>{{ user.username }}</strong></div>
+            <div class="meta">
+              Status: {{ 'active' if user.is_active else 'disabled' }}<br>
+              Created at: {{ user.created_at }}
+            </div>
+          </div>
+          <div class="meta">
+            Owner: {{ user.created_by_admin_username or current_user.username }}
+          </div>
+          <div class="user-actions">
+            <form method="post" action="/admin/users/{{ user.id }}/toggle">
+              <input type="hidden" name="enabled" value="{{ 'true' if not user.is_active else 'false' }}">
+              <button class="mini-button secondary" type="submit">{{ 'Enable' if not user.is_active else 'Disable' }}</button>
+            </form>
+            <form method="post" action="/admin/users/{{ user.id }}/delete" onsubmit="return confirm('Delete user {{ user.username }}?');">
+              <button class="mini-button danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% if not managed_users %}
+        <div class="note">No normal users have been created yet.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <span>Automation targets</span>
+        <span class="tag">room {{ default_room_id }}</span>
+      </div>
+      <div class="note">Create policies like temperature &gt; 30 to turn on a fan, and the decision service will evaluate them from the catalog room config.</div>
+
+      <form method="post" action="/admin/targets/create">
+        <div class="policy-grid">
+          <div class="field">
+            <label for="policy-id">Policy id</label>
+            <input id="policy-id" name="policy_id" type="text" placeholder="Optional, auto-generated if blank">
+          </div>
+          <div class="field">
+            <label for="policy-room">Room id</label>
+            <input id="policy-room" name="room_id" type="text" value="{{ default_room_id }}" required>
+          </div>
+          <div class="field">
+            <label for="policy-metric">Metric</label>
+            <select id="policy-metric" name="metric" required>
+              <option value="temperature">temperature</option>
+              <option value="humidity">humidity</option>
+              <option value="co2">co2</option>
+              <option value="pm25">pm25</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="policy-operator">Operator</label>
+            <select id="policy-operator" name="operator" required>
+              <option value=">">&gt;</option>
+              <option value="<">&lt;</option>
+              <option value=">=">&gt;=</option>
+              <option value="<=">&lt;=</option>
+              <option value="==">==</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="policy-value">Threshold value</label>
+            <input id="policy-value" name="value" type="number" step="0.1" value="30" required>
+          </div>
+          <div class="field">
+            <label for="policy-target-device">Target device</label>
+            {% if room_devices %}
+            <select id="policy-target-device" name="target_device" required>
+              {% for device in room_devices %}
+              <option value="{{ device.key }}">{{ device.key }}{% if device.device_class %} ({{ device.device_class }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <input id="policy-target-device" name="target_device" type="text" placeholder="fan_1" required>
+            {% endif %}
+          </div>
+          <div class="field">
+            <label for="policy-target-state">Target state</label>
+            <input id="policy-target-state" name="target_state" type="text" value="ON" required>
+          </div>
+          <div class="field">
+            <label for="policy-priority">Priority</label>
+            <input id="policy-priority" name="priority" type="number" value="1" min="1" required>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="button" type="submit">Save target policy</button>
+        </div>
+      </form>
+
+      <div class="policy-list">
+        {% for policy in room_targets %}
+        <div class="policy-row">
+          <div>
+            <div><strong>{{ policy.policy_id }}</strong></div>
+            <div class="meta">{{ policy.metric }} {{ policy.operator }} {{ policy.value }} → {{ policy.target_device }} = {{ policy.target_state }}</div>
+          </div>
+          <div class="meta">
+            Room: {{ policy.room_id }}<br>
+            Priority: {{ policy.priority }}
+          </div>
+          <div class="policy-actions">
+            <form method="post" action="/admin/targets/{{ policy.policy_id }}/delete" onsubmit="return confirm('Delete target {{ policy.policy_id }}?');">
+              <button class="mini-button danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+        {% if not room_targets %}
+        <div class="note">No target policies are defined for this room yet.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <footer class="footer">
+      <strong>Project</strong>
+      <div class="project">AirGuard: A Scalable IoT Platform for IAQ Monitoring and Adaptive Ventilation Control</div>
+      <div class="members">Team members: Yang Ming (s337032), Mateus Lanzoni Trejos (s350240), Syed Umer Farooq Shah (s359420), Li Ruolin (s337356)</div>
+      <button class="theme-toggle" id="theme-toggle" type="button">White mode</button>
+    </footer>
+  </div>
+
+  <script>
+    function setStatus(message, kind) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = 'status ' + (kind || '');
+    }
+
+    async function saveEnv() {
+      const password = document.getElementById('admin-password').value;
+      const values = {};
+      document.querySelectorAll('[data-env-key]').forEach((input) => {
+        values[input.dataset.envKey] = input.value;
+      });
+
+      try {
+        const response = await fetch('/admin/env', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({password, values}),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || 'Unable to save env');
+        }
+        setStatus('Saved: ' + data.updated.join(', ') + '. Restart services to apply process-level changes.', 'ok');
+      } catch (error) {
+        setStatus(error.message, 'bad');
+      }
+    }
+
+    function loadCurrent() {
+      window.location.reload();
+    }
+
+    (() => {
+      const key = 'airguard-theme';
+      const button = document.getElementById('theme-toggle');
+      const applyTheme = (theme) => {
+        const light = theme === 'light';
+        document.body.classList.toggle('light', light);
+        button.textContent = light ? 'Dark mode' : 'White mode';
+      };
+      applyTheme(localStorage.getItem(key) || 'dark');
+      button.addEventListener('click', () => {
+        const next = document.body.classList.contains('light') ? 'dark' : 'light';
+        localStorage.setItem(key, next);
+        applyTheme(next);
+      });
+    })();
+  </script>
+</body>
+</html>

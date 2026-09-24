@@ -1,0 +1,52 @@
+# config.yaml (mock Catalog )
+
+sensors:
+  - key: "temp_1"
+    name: "Temperature"
+    device_class: "temperature"
+    unit: "°C"
+    base_val: 26.0
+    noise: 0.3
+    ac_effect: -2.0          # AC on: temp decreases by 2°C per second
+    ac_min: 18.0             # AC won't cool below 18°C
+
+  - key: "humi_1"
+    name: "Humidity"
+    device_class: "humidity"
+    unit: "%"
+    base_val: 55.0
+    noise: 2.0
+    fan_effect: -0.5         # Fan on: humidity decreases by 0.5% per second
+    fan_min: 40.0            # Don't go below 40% humidity
+
+  - key: "co2_1"
+    name: "CO2 Level"
+    device_class: "aqi"
+    unit: "ppm"
+    base_val: 600.0
+    noise: 15.0
+    window_effect: -15.0     # Window on: CO2 decreases by 15 ppm per second
+    window_min: 400.0        # Outdoor CO2 level (min)
+
+  - key: "pm25_1"
+    name: "PM2.5"
+    device_class: "pm25"
+    unit: "µg/m³"
+    base_val: 35.0
+    noise: 5.0
+    window_effect: -1.5      # Window on: PM2.5 decreases by 1.5 µg/m³ per second
+    window_min: 10.0         # Outdoor PM2.5 level (min)
+
+actuators:
+  - key: "ac_1"
+    name: "Air Conditioner"
+    device_class: "climate"
+    initial_state: false
+  - key: "fan_1"
+    name: "Ventilation Fan"
+    device_class: "switch"
+    initial_state: false
+  - key: "window_1"
+    name: "Window"
+    device_class: "switch"
+    initial_state: false

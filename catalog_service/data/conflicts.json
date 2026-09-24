@@ -1,0 +1,9 @@
+[
+  {
+    "conflict_id": "c1",
+    "room_id": "room1",
+    "rule": "mutually_exclusive",
+    "devices": ["ac_1", "window_1", "fan_1"],
+    "strategy": "prefer_higher_priority"
+  }
+]
