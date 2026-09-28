@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AirGuard{% endblock %}</title>
+  <script>
+    // Apply the saved theme before first paint so white mode doesn't flash dark.
+    (() => {
+      let theme = 'dark';
+      try { theme = localStorage.getItem('airguard-theme') || 'dark'; } catch (e) {}
+      document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08111b;
+      --bg-art:
+        radial-gradient(circle at 0% 0%, rgba(121, 167, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 85% 5%, rgba(73, 214, 167, 0.12), transparent 30%),
+        linear-gradient(180deg, #08111b 0%, #09131f 55%, #050b12 100%);
+      --surface: rgba(13, 22, 35, 0.86);
+      --surface-2: rgba(255, 255, 255, 0.035);
+      --surface-solid: #0d1623;
+      --input: rgba(3, 8, 14, 0.6);
+      --text: #ecf4ff;
+      --muted: #93a4bc;
+      --faint: #6d7f97;
+      --line: rgba(149, 180, 216, 0.16);
+      --line-strong: rgba(149, 180, 216, 0.3);
+      --accent: #49d6a7;
+      --accent-soft: rgba(73, 214, 167, 0.12);
+      --info: #79a7ff;
+      --info-soft: rgba(121, 167, 255, 0.14);
+      --good: #5fe0a0;
+      --good-soft: rgba(95, 224, 160, 0.13);
+      --warn: #ffbf69;
+      --warn-soft: rgba(255, 191, 105, 0.14);
+      --bad: #ff7d7d;
+      --bad-soft: rgba(255, 125, 125, 0.14);
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.32);
+      --radius: 16px;
+      --font: "Trebuchet MS", "Gill Sans", "Segoe UI", system-ui, sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+      --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #fffaf0;
+      --bg-art:
+        radial-gradient(circle at 5% 0%, rgba(255, 210, 106, 0.26), transparent 32%),
+        radial-gradient(circle at 92% 6%, rgba(93, 214, 190, 0.2), transparent 30%),
+        linear-gradient(180deg, #fffdf7 0%, #fff8e9 55%, #f4fbf5 100%);
+      --surface: rgba(255, 255, 255, 0.9);
+      --surface-2: rgba(38, 59, 70, 0.04);
+      --surface-solid: #ffffff;
+      --input: #fffdf8;
+      --text: #1f3440;
+      --muted: #5b6f78;
+      --faint: #7d8f96;
+      --line: rgba(38, 59, 70, 0.13);
+      --line-strong: rgba(38, 59, 70, 0.26);
+      --accent: #0e8f74;
+      --accent-soft: rgba(19, 168, 137, 0.12);
+      --info: #2c64c4;
+      --info-soft: rgba(44, 100, 196, 0.1);
+      --good: #12805f;
+      --good-soft: rgba(18, 128, 95, 0.11);
+      --warn: #a86a0c;
+      --warn-soft: rgba(233, 162, 39, 0.16);
+      --bad: #c2433a;
+      --bad-soft: rgba(217, 103, 94, 0.13);
+      --shadow: 0 16px 40px rgba(197, 140, 70, 0.13);
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg-art);
+      background-attachment: fixed;
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+    a { color: inherit; }
+    h1, h2, h3 { font-family: var(--serif); letter-spacing: -0.02em; margin: 0; }
+    h1 { font-size: clamp(1.8rem, 3.6vw, 2.6rem); line-height: 1.05; }
+    h2 { font-size: 1.3rem; }
+    h3 { font-size: 1.05rem; }
+    code, .mono { font-family: var(--mono); font-size: 0.9em; }
+
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px 40px; }
+
+    /* ── Top bar ─────────────────────────────────────────── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin-bottom: 24px;
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+    .topbar-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    main > * + * { margin-top: 18px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--serif); font-weight: 700; font-size: 1.15rem; }
+    .brand-mark { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--info)); display: grid; place-items: center; color: #04221a; font-family: var(--font); font-size: 13px; font-weight: 800; }
+    .nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    .nav a { text-decoration: none; color: var(--muted); padding: 7px 12px; border-radius: 10px; font-weight: 700; font-size: 14px; }
+    .nav a:hover { color: var(--text); background: var(--surface-2); }
+    .nav a[aria-current="page"] { color: var(--text); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .who { color: var(--muted); font-size: 13px; padding-right: 4px; }
+    .who strong { color: var(--text); }
+
+    /* ── Surfaces ────────────────────────────────────────── */
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; backdrop-filter: blur(10px); }
+    .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .card-head p { margin: 4px 0 0; }
+    .muted { color: var(--muted); }
+    .small { font-size: 13px; }
+    .tiny { font-size: 12px; }
+    .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+    .page-head p { margin: 8px 0 0; color: var(--muted); max-width: 720px; }
+    .eyebrow { display: inline-block; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      min-height: 38px; padding: 8px 14px; border-radius: 10px;
+      border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--text);
+      font: inherit; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--muted); }
+    .btn:focus-visible, .nav a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #04221a; }
+    :root[data-theme="light"] .btn.primary { color: #fff; }
+    .btn.primary:hover { filter: brightness(1.06); }
+    .btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); background: var(--bad-soft); }
+    .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+    .btn.ghost:hover { color: var(--text); background: var(--surface-2); }
+    .btn.sm { min-height: 32px; padding: 5px 10px; font-size: 13px; }
+    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Badges ──────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--line); color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+    .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: none; }
+    .badge.dot::before { display: inline-block; }
+    .badge.good { color: var(--good); background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 30%, transparent); }
+    .badge.warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+    .badge.bad { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+    .badge.active { color: var(--info); background: var(--info-soft); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+
+    /* ── Notices ─────────────────────────────────────────── */
+    .notice { padding: 11px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 14px; color: var(--good); background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 30%, transparent); }
+    .notice.bad { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+    .notice.warn { color: var(--warn); background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+
+    /* ── Forms ───────────────────────────────────────────── */
+    label, .label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+    input, select {
+      width: 100%; min-height: 38px; padding: 8px 11px; border-radius: 10px;
+      border: 1px solid var(--line-strong); background: var(--input); color: var(--text); font: inherit; font-size: 14px;
+    }
+    input:hover, select:hover { border-color: var(--muted); }
+    input[disabled], input[readonly] { color: var(--muted); }
+    select option { background: var(--surface-solid); color: var(--text); }
+    .hint { color: var(--faint); font-size: 12px; margin-top: 5px; }
+
+    /* ── Tables ──────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; position: relative; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
+    th { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td[colspan] { text-align: left !important; }
+
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    details > summary { cursor: pointer; list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .site-footer { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--faint); font-size: 12.5px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .site-footer strong { color: var(--muted); }
+
+    /* ── Centered auth layout ────────────────────────────── */
+    .auth { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+    .auth .panel { width: min(460px, 100%); }
+    .auth .theme-corner { position: fixed; top: 14px; right: 16px; }
+
+    @media (max-width: 720px) {
+      .topbar-inner { gap: 10px; }
+      .topbar-right { margin-left: 0; width: 100%; justify-content: flex-end; }
+      .who { display: none; }
+    }
+    {% block styles %}{% endblock %}
+  </style>
+</head>
+<body>
+  {% block body %}
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/dashboard"><span class="brand-mark" aria-hidden="true">AG</span>AirGuard</a>
+      <nav class="nav" aria-label="Main">
+        <a href="/dashboard" {% if active_page == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+        {% if is_admin %}
+        <a href="/admin/management" {% if active_page == 'management' %}aria-current="page"{% endif %}>Management</a>
+        <a href="/admin/env" {% if active_page == 'settings' %}aria-current="page"{% endif %}>Settings &amp; users</a>
+        {% endif %}
+      </nav>
+      <div class="topbar-right">
+        {% if current_user %}<span class="who">Signed in as <strong>{{ current_user.username }}</strong></span>{% endif %}
+        <button class="btn ghost sm" type="button" data-theme-toggle>White mode</button>
+        <a class="btn sm" href="/logout">Log out</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+      <span><strong>AirGuard</strong> — A Scalable IoT Platform for IAQ Monitoring and Adaptive Ventilation Control</span>
+      <span>Yang Ming · Mateus Lanzoni Trejos · Syed Umer Farooq Shah · Li Ruolin</span>
+    </footer>
+  </div>
+  {% endblock %}
+
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const sync = () => {
+        const light = root.dataset.theme === 'light';
+        document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+          button.textContent = light ? 'Dark mode' : 'White mode';
+          button.setAttribute('aria-pressed', String(light));
+        });
+      };
+      document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+        button.addEventListener('click', () => {
+          root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+          try { localStorage.setItem('airguard-theme', root.dataset.theme); } catch (e) {}
+          sync();
+        });
+      });
+      sync();
+
+      // Server renders UTC; show the viewer's local time plus a relative hint.
+      const rel = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+      const clock = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+      const full = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      const describe = (date) => {
+        const seconds = Math.round((date - Date.now()) / 1000);
+        const abs = Math.abs(seconds);
+        if (abs < 45) return 'just now';
+        if (abs < 3600) return rel.format(Math.round(seconds / 60), 'minute');
+        if (abs < 86400) return rel.format(Math.round(seconds / 3600), 'hour');
+        return full.format(date);
+      };
+      const render = () => document.querySelectorAll('time[datetime]').forEach((node) => {
+        const date = new Date(node.getAttribute('datetime'));
+        if (Number.isNaN(date.getTime())) return;
+        node.title = full.format(date);
+        if (node.dataset.format === 'clock') node.textContent = clock.format(date);
+        else node.textContent = describe(date);
+      });
+      render();
+      setInterval(render, 30000);
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

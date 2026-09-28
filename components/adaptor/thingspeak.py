@@ -22,16 +22,15 @@ class ThingSpeakProvider(BaseTimeSeriesStorage):
                 if isinstance(topic, str) and room_token in topic:
                     return ch
 
-        # Fallback: first readable channel
-        for ch in self.channels:
-            if ch.get("read_api_key"):
-                return ch
+        # No fallback to another room's channel: that would report its readings
+        # as if they belonged to this room.
         return None
 
     async def get_history(self, roomid: str, starttime: str, endtime: str):
         selected_channel = self._select_channel_for_room(roomid)
         if not selected_channel:
-            return {"error": f"No readable channel found for room '{roomid}'."}
+            logger.info(f"No ThingSpeak channel configured for room '{roomid}'; returning no data")
+            return []
 
         channel_id = str(selected_channel.get("channel_id"))
         read_api_key = selected_channel.get("read_api_key")

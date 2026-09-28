@@ -38,23 +38,58 @@ SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "airguard-dev-session-secre
 DEFAULT_ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", auth_store.DEFAULT_ADMIN_USERNAME)
 
 ADMIN_ENV_FIELDS = [
-    {"key": "MQTT_USER", "label": "MQTT user", "kind": "text"},
-    {"key": "MQTT_PASSWORD", "label": "MQTT password", "kind": "password"},
-    {"key": "MQTT_PORT", "label": "MQTT port", "kind": "text"},
-    {"key": "MQTT_BROKER", "label": "MQTT broker", "kind": "text"},
-    {"key": "THINGSPEAK_WRITE_API_KEY", "label": "ThingSpeak write key", "kind": "password"},
-    {"key": "THINGSPEAK_READ_API_KEY", "label": "ThingSpeak read key", "kind": "password"},
-    {"key": "THINGSPEAK_COMMAND_WRITE_API_KEY", "label": "ThingSpeak command write key", "kind": "password"},
-    {"key": "TELEGRAM_BOT_TOKEN", "label": "Telegram bot token", "kind": "password"},
-    {"key": "TELEGRAM_CHAT_ID", "label": "Telegram chat id", "kind": "text"},
-    {"key": "TELEGRAM_BOT_NAME", "label": "Telegram bot name", "kind": "text"},
-    {"key": "ADMIN_PASSWORD", "label": "Admin password", "kind": "password"},
-    {"key": "CATALOG_SERVICE_URL", "label": "Catalog service URL", "kind": "text"},
-    {"key": "PREDICTION_SERVICE_URL", "label": "Prediction service URL", "kind": "text"},
-    {"key": "DECISION_SERVICE_URL", "label": "Decision service URL", "kind": "text"},
-    {"key": "ADAPTOR_SERVICE_URL", "label": "Adaptor service URL", "kind": "text"},
-    {"key": "DEFAULT_ROOM_ID", "label": "Default room id", "kind": "text"},
+    {"key": "MQTT_USER", "label": "MQTT user", "kind": "text", "group": "MQTT broker"},
+    {"key": "MQTT_PASSWORD", "label": "MQTT password", "kind": "password", "group": "MQTT broker"},
+    {"key": "MQTT_BROKER", "label": "MQTT broker host", "kind": "text", "group": "MQTT broker"},
+    {"key": "MQTT_PORT", "label": "MQTT port", "kind": "text", "group": "MQTT broker"},
+    {"key": "THINGSPEAK_WRITE_API_KEY", "label": "Write key", "kind": "password", "group": "ThingSpeak"},
+    {"key": "THINGSPEAK_READ_API_KEY", "label": "Read key", "kind": "password", "group": "ThingSpeak"},
+    {"key": "THINGSPEAK_COMMAND_WRITE_API_KEY", "label": "Command write key", "kind": "password", "group": "ThingSpeak"},
+    {"key": "TELEGRAM_BOT_TOKEN", "label": "Bot token", "kind": "password", "group": "Telegram"},
+    {"key": "TELEGRAM_CHAT_ID", "label": "Chat id", "kind": "text", "group": "Telegram"},
+    {"key": "TELEGRAM_BOT_NAME", "label": "Bot name", "kind": "text", "group": "Telegram"},
+    {"key": "CATALOG_SERVICE_URL", "label": "Catalog service URL", "kind": "text", "group": "Service URLs"},
+    {"key": "PREDICTION_SERVICE_URL", "label": "Prediction service URL", "kind": "text", "group": "Service URLs"},
+    {"key": "DECISION_SERVICE_URL", "label": "Decision service URL", "kind": "text", "group": "Service URLs"},
+    {"key": "ADAPTOR_SERVICE_URL", "label": "Adaptor service URL", "kind": "text", "group": "Service URLs"},
+    {"key": "DEFAULT_ROOM_ID", "label": "Default room id", "kind": "text", "group": "Dashboard"},
+    {"key": "ADMIN_PASSWORD", "label": "New admin password", "kind": "password", "group": "Dashboard"},
 ]
+
+# Air-quality metrics shown on the dashboard. `field` is the ThingSpeak field
+# used by the adaptor history API; `bands` are (good, moderate) limits, anything
+# outside the moderate band is rated poor.
+METRICS = [
+    {
+        "key": "temperature", "label": "Temperature", "field": "field2", "unit": "°C", "decimals": 1,
+        "good": (20, 26), "moderate": (18, 28), "target": "Comfort range 20–26 °C",
+    },
+    {
+        "key": "humidity", "label": "Humidity", "field": "field3", "unit": "%", "decimals": 0,
+        "good": (30, 60), "moderate": (25, 70), "target": "Comfort range 30–60 %",
+    },
+    {
+        "key": "co2", "label": "CO₂", "field": "field4", "unit": "ppm", "decimals": 0,
+        "good": (0, 800), "moderate": (0, 1000), "target": "Good below 800 ppm",
+    },
+    {
+        "key": "pm25", "label": "PM2.5", "field": "field5", "unit": "µg/m³", "decimals": 1,
+        "good": (0, 15), "moderate": (0, 35), "target": "WHO guideline ≤ 15 µg/m³",
+    },
+]
+METRICS_BY_KEY = {metric["key"]: metric for metric in METRICS}
+STATUS_LABELS = {"good": "Good", "warn": "Moderate", "bad": "Poor"}
+DEVICE_CLASS_LABELS = {
+    "temperature": "Temperature", "humidity": "Humidity", "co2": "CO₂", "pm25": "PM2.5",
+    "AC": "Air conditioner", "FAN": "Fan", "WINDOW": "Window",
+}
+POLICY_OPERATORS = {
+    ">": lambda a, b: a > b,
+    "<": lambda a, b: a < b,
+    ">=": lambda a, b: a >= b,
+    "<=": lambda a, b: a <= b,
+    "==": lambda a, b: a == b,
+}
 
 
 class AdminEnvUpdate(BaseModel):
@@ -67,7 +102,7 @@ class AdminUserCreate(BaseModel):
     password: str = Field(min_length=1)
 
 
-ALLOWED_POLICY_OPERATORS = {">", "<", ">=", "<=", "=="}
+ALLOWED_POLICY_OPERATORS = set(POLICY_OPERATORS)
 
 def get_service_urls() -> dict[str, str]:
     return {
@@ -178,11 +213,18 @@ def _require_admin_user(request: Request) -> dict[str, Any] | RedirectResponse:
 def _admin_context() -> dict[str, Any]:
     _reload_runtime_env()
     env_values = parse_env_file(ROOT_DOTENV_PATH)
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for field in ADMIN_ENV_FIELDS:
+        current = env_values.get(field["key"], os.getenv(field["key"], "")) or ""
+        is_secret = field["kind"] == "password"
+        groups.setdefault(field["group"], []).append({
+            **field,
+            # Secrets are never sent to the browser; a blank submit keeps the current value.
+            "value": "" if is_secret else current,
+            "is_set": bool(current),
+        })
     return {
-        "admin_fields": [
-            {**field, "value": env_values.get(field["key"], os.getenv(field["key"], ""))}
-            for field in ADMIN_ENV_FIELDS
-        ],
+        "admin_groups": groups,
         "dotenv_path": str(ROOT_DOTENV_PATH),
     }
 
@@ -240,10 +282,28 @@ async def _management_data() -> dict[str, Any]:
     rooms = await _fetch_json(f"{service_urls['catalog']}/rooms")
     devices = await _fetch_json(f"{service_urls['catalog']}/devices")
     policies = await _fetch_json(f"{service_urls['catalog']}/policies")
+    room_list = (rooms.get("data") or []) if isinstance(rooms, dict) else []
+    device_list = (devices.get("data") or []) if isinstance(devices, dict) else []
+    policy_list = (policies.get("data") or []) if isinstance(policies, dict) else []
+    known_keys = {device.get("key") for device in device_list}
+    for room in room_list:
+        # Deleting a room leaves these behind, so the confirm dialog mentions them.
+        room["assigned_device_count"] = sum(1 for device in device_list if device.get("room_id") == room.get("room_id"))
+        room["policy_count"] = sum(1 for policy in policy_list if policy.get("room_id") == room.get("room_id"))
+        listed = set(room.get("device_ids") or [])
+        # Flag drift between a room's device list and the devices that point at it.
+        room["unlisted_devices"] = sorted(
+            device["key"] for device in device_list
+            if device.get("room_id") == room.get("room_id") and device.get("key") not in listed
+        )
+        room["unknown_devices"] = sorted(key for key in listed if key not in known_keys)
     return {
-        "rooms": rooms.get("data", []) if isinstance(rooms, dict) else [],
-        "devices": devices.get("data", []) if isinstance(devices, dict) else [],
-        "policies": policies.get("data", []) if isinstance(policies, dict) else [],
+        "rooms": room_list,
+        "devices": device_list,
+        "policies": policy_list,
+        "metrics": METRICS,
+        "metrics_by_key": METRICS_BY_KEY,
+        "device_class_labels": DEVICE_CLASS_LABELS,
     }
 
 
@@ -380,6 +440,271 @@ async def _enrich_thingspeak_rooms(
     return enriched
 
 
+def _parse_time(value: Any) -> datetime | None:
+    """Accept ISO strings, epoch seconds or epoch milliseconds."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        seconds = value / 1000 if value > 1e11 else value
+        return datetime.fromtimestamp(seconds, tz=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _iso(value: Any) -> str | None:
+    parsed = _parse_time(value)
+    return parsed.isoformat() if parsed else None
+
+
+def _to_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_number(value: float | None, decimals: int) -> str:
+    if value is None:
+        return "–"
+    return f"{value:.{decimals}f}"
+
+
+def _format_span(seconds: float) -> str:
+    minutes = round(seconds / 60)
+    if minutes < 90:
+        return f"{minutes} min"
+    hours = round(minutes / 60)
+    if hours < 48:
+        return f"{hours} h"
+    return f"{round(hours / 24)} days"
+
+
+def _classify(metric: dict[str, Any], value: float | None) -> str | None:
+    if value is None:
+        return None
+    low, high = metric["good"]
+    if low <= value <= high:
+        return "good"
+    low, high = metric["moderate"]
+    if low <= value <= high:
+        return "warn"
+    return "bad"
+
+
+def _sparkline(
+    points: list[tuple[datetime, float]],
+    forecast: tuple[datetime, float] | None,
+    width: int = 200,
+    height: int = 48,
+) -> dict[str, str] | None:
+    if len(points) < 2:
+        return None
+    series = points + ([forecast] if forecast else [])
+    t0 = series[0][0].timestamp()
+    t1 = max(moment.timestamp() for moment, _ in series)
+    values = [value for _, value in series]
+    low, high = min(values), max(values)
+    if high - low < 1e-9:
+        low, high = low - 1, high + 1
+    pad = (high - low) * 0.15
+    low, high = low - pad, high + pad
+
+    def xy(moment: datetime, value: float) -> tuple[float, float]:
+        x = (moment.timestamp() - t0) / ((t1 - t0) or 1) * width
+        y = height - (value - low) / (high - low) * height
+        return round(x, 1), round(y, 1)
+
+    # Break the line where readings stop for a while instead of drawing a
+    # straight segment across the gap as if data existed there.
+    steps = sorted((b[0] - a[0]).total_seconds() for a, b in zip(points, points[1:]))
+    gap = max(steps[len(steps) // 2] * 4, 300)
+    segments: list[list[tuple[float, float]]] = [[xy(*points[0])]]
+    for previous, current in zip(points, points[1:]):
+        if (current[0] - previous[0]).total_seconds() > gap:
+            segments.append([])
+        segments[-1].append(xy(*current))
+
+    def path(coords: list[tuple[float, float]]) -> str:
+        return "M" + " L".join(f"{x},{y}" for x, y in coords)
+
+    line = " ".join(path(coords) for coords in segments)
+    area = " ".join(
+        f"{path(coords)} L{coords[-1][0]},{height} L{coords[0][0]},{height} Z"
+        for coords in segments if len(coords) > 1
+    )
+    coords = segments[-1]
+    result = {"line": line, "area": area, "width": str(width), "height": str(height),
+              "end_x": str(coords[-1][0]), "end_y": str(coords[-1][1])}
+    if forecast:
+        fx, fy = xy(*forecast)
+        result.update(forecast=f"{coords[-1][0]},{coords[-1][1]} {fx},{fy}", forecast_x=str(fx), forecast_y=str(fy))
+    return result
+
+
+def _build_metric_cards(history: list[dict[str, Any]], prediction: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = sorted(
+        (row for row in history if isinstance(row, dict) and _parse_time(row.get("created_at"))),
+        key=lambda row: _parse_time(row.get("created_at")),
+    )
+    predictions = (prediction.get("predictions") or {}) if isinstance(prediction, dict) else {}
+    cards: list[dict[str, Any]] = []
+    for metric in METRICS:
+        points = [
+            (_parse_time(row["created_at"]), value)
+            for row in rows
+            if (value := _to_float(row.get(metric["field"]))) is not None
+        ]
+        value = points[-1][1] if points else None
+        status = _classify(metric, value)
+
+        forecast = None
+        info = predictions.get(metric["key"]) or {}
+        forecast_value = _to_float(info.get("value"))
+        if forecast_value is not None and points:
+            horizon = int(info.get("horizon_minutes") or 15)
+            generated = _parse_time(info.get("generated_at")) or points[-1][0]
+            target_time = max(generated, points[-1][0]) + timedelta(minutes=horizon)
+            forecast = (target_time, forecast_value)
+
+        trend = None
+        if len(points) >= 2:
+            delta = points[-1][1] - points[0][1]
+            trend = {
+                "direction": "up" if delta > 0 else "down" if delta < 0 else "flat",
+                "delta": _format_number(abs(delta), metric["decimals"]),
+                "span": _format_span((points[-1][0] - points[0][0]).total_seconds()),
+            }
+
+        cards.append({
+            "key": metric["key"],
+            "label": metric["label"],
+            "unit": metric["unit"],
+            "value": _format_number(value, metric["decimals"]),
+            "has_value": value is not None,
+            "status": status,
+            "status_label": STATUS_LABELS.get(status or "", "No data"),
+            "target": metric["target"],
+            "updated_at": points[-1][0].isoformat() if points else None,
+            "trend": trend,
+            "forecast": _format_number(forecast_value, metric["decimals"]) if forecast_value is not None else None,
+            "forecast_status": _classify(metric, forecast_value),
+            "horizon": int(info.get("horizon_minutes") or 15) if info else None,
+            "spark": _sparkline(points, forecast),
+        })
+    return cards
+
+
+def _metric_for_device_class(device_class: str | None) -> dict[str, Any] | None:
+    return METRICS_BY_KEY.get((device_class or "").lower())
+
+
+def _build_device_rows(
+    room: dict[str, Any], decision_states: dict[str, Any], room_id: str, cards: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    cards_by_key = {card["key"]: card for card in cards}
+    room_states = decision_states.get(room_id, {}) if isinstance(decision_states, dict) else {}
+    rows: list[dict[str, Any]] = []
+    for device in room.get("sensors", []) or []:
+        metric = _metric_for_device_class(device.get("device_class"))
+        card = cards_by_key.get(metric["key"]) if metric else None
+        rows.append({
+            "key": device.get("key") or device.get("name"),
+            "kind": "sensor",
+            "type": DEVICE_CLASS_LABELS.get(device.get("device_class"), device.get("device_class") or "Sensor"),
+            "reading": f"{card['value']} {card['unit']}" if card and card["has_value"] else "No data",
+            "status": card["status"] if card else None,
+            "updated_at": card["updated_at"] if card else None,
+        })
+    seen: set[str] = set()
+    for device in room.get("actuators", []) or []:
+        key = device.get("key") or device.get("name")
+        seen.add(key)
+        entry = room_states.get(key) or {}
+        rows.append(_actuator_row(key, device.get("device_class"), entry))
+    for key, entry in room_states.items():
+        if key not in seen:
+            rows.append(_actuator_row(key, None, entry))
+    return rows
+
+
+def _actuator_row(key: str, device_class: str | None, entry: dict[str, Any]) -> dict[str, Any]:
+    state = str(entry.get("state") or "").upper()
+    if state == "ERROR":
+        status = "bad"
+    elif state in {"ON", "OPEN"}:
+        status = "active"
+    else:
+        status = "idle" if state else None
+    return {
+        "key": key,
+        "kind": "actuator",
+        "type": DEVICE_CLASS_LABELS.get(device_class or "", device_class or "Actuator"),
+        "reading": state or "No command yet",
+        "status": status,
+        "updated_at": _iso(entry.get("last_action_time")),
+    }
+
+
+def _build_policy_rows(room: dict[str, Any], cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    values = {card["key"]: _to_float(card["value"]) for card in cards}
+    rows: list[dict[str, Any]] = []
+    for policy in sorted(room.get("policies", []) or [], key=lambda item: item.get("priority", 99)):
+        metric = METRICS_BY_KEY.get(str(policy.get("metric", "")).lower())
+        current = values.get(metric["key"]) if metric else None
+        threshold = _to_float(policy.get("value"))
+        compare = POLICY_OPERATORS.get(policy.get("operator"))
+        active = bool(compare and current is not None and threshold is not None and compare(current, threshold))
+        rows.append({
+            "policy_id": policy.get("policy_id"),
+            "metric": metric["label"] if metric else policy.get("metric"),
+            "operator": policy.get("operator"),
+            "value": f"{policy.get('value')} {metric['unit']}" if metric else policy.get("value"),
+            "target_device": policy.get("target_device"),
+            "target_state": policy.get("target_state"),
+            "priority": policy.get("priority"),
+            "active": active,
+        })
+    return rows
+
+
+def _label_thingspeak_fields(channels: list[dict[str, Any]], devices: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    devices_by_key = {device.get("key"): device for device in devices if isinstance(device, dict)}
+    labelled: list[dict[str, Any]] = []
+    for channel in channels:
+        item = dict(channel)
+        fields = []
+        for field in item.get("telemetry") or item.get("fields", []):
+            topic = field.get("topic") or ""
+            device_key = topic.rsplit("/", 1)[-1] if "/device/" in topic else None
+            device = devices_by_key.get(device_key) if device_key else None
+            if device:
+                label = DEVICE_CLASS_LABELS.get(device.get("device_class"), device.get("device_class"))
+                metric = _metric_for_device_class(device.get("device_class"))
+                unit = metric["unit"] if metric else ""
+            elif device_key:
+                label, unit = device_key, ""
+            else:
+                label, unit = "Room id", ""
+            fields.append({
+                **field,
+                "label": label,
+                "device": device_key,
+                "unit": unit,
+                "timestamp": _iso(field.get("timestamp")),
+            })
+        item["labelled_fields"] = fields
+        labelled.append(item)
+    return labelled
+
+
+TEMPLATES.env.filters["iso"] = _iso
+
+
 async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     _reload_runtime_env()
     service_urls = get_service_urls()
@@ -389,36 +714,47 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
     adaptor_health = await _fetch_json(f"{service_urls['adaptor']}/health")
     catalog = await _fetch_json(f"{service_urls['catalog']}/room/{room_id}")
     rooms = await _fetch_json(f"{service_urls['catalog']}/rooms")
+    devices = await _fetch_json(f"{service_urls['catalog']}/devices")
     services = await _fetch_json(f"{service_urls['catalog']}/services")
-    prediction = await _fetch_json(f"{service_urls['prediction']}/prediction/{room_id}")
     decision = await _fetch_json(f"{service_urls['decision']}/status")
     thingspeak_rooms = await _enrich_thingspeak_rooms(
         _load_thingspeak_rooms(), service_urls["adaptor"]
     )
 
-    end = datetime.now(timezone.utc)
-    recent_start = end - timedelta(hours=1)
-    recent_history_url = (
-        f"{service_urls['adaptor']}/api/v1/history"
-        f"?roomid={room_id}&starttime={recent_start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
-    )
-    history = await _fetch_json(recent_history_url)
+    # `or` rather than a .get() default: services answer {"data": null} for unknown ids.
+    room_data = (catalog.get("data") or {}) if isinstance(catalog, dict) else {}
 
-    if not history:
-        broad_start = end - timedelta(days=30)
-        broad_history_url = (
+    # Only rooms that exist in the catalog get readings and a forecast; anything
+    # else is shown as "no data".
+    prediction = None
+    history = None
+    if room_data:
+        prediction = await _fetch_json(f"{service_urls['prediction']}/prediction/{room_id}")
+        end = datetime.now(timezone.utc)
+        recent_start = end - timedelta(hours=1)
+        recent_history_url = (
             f"{service_urls['adaptor']}/api/v1/history"
-            f"?roomid={room_id}&starttime={broad_start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            f"?roomid={room_id}&starttime={recent_start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
         )
-        history = await _fetch_json(broad_history_url)
+        history = await _fetch_json(recent_history_url)
 
-    room_data = catalog.get("data", {}) if isinstance(catalog, dict) else {}
-    services_data = services.get("data", []) if isinstance(services, dict) else []
-    decision_data = decision.get("data", {}) if isinstance(decision, dict) else {}
-    prediction_data = prediction.get("data", {}) if isinstance(prediction, dict) else {}
+        if not history:
+            broad_start = end - timedelta(days=30)
+            broad_history_url = (
+                f"{service_urls['adaptor']}/api/v1/history"
+                f"?roomid={room_id}&starttime={broad_start.strftime('%Y-%m-%dT%H:%M:%SZ')}&endtime={end.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            )
+            history = await _fetch_json(broad_history_url)
 
-    telemetry = history or []
-    latest = _build_latest_sample(telemetry) if isinstance(telemetry, list) else {}
+    services_data = (services.get("data") or []) if isinstance(services, dict) else []
+    decision_data = (decision.get("data") or {}) if isinstance(decision, dict) else {}
+    prediction_data = (prediction.get("data") or {}) if isinstance(prediction, dict) else {}
+    devices_data = (devices.get("data") or []) if isinstance(devices, dict) else []
+
+    telemetry = history if isinstance(history, list) else []
+    latest = _build_latest_sample(telemetry)
+    metric_cards = _build_metric_cards(telemetry, prediction_data)
+    updated_at = max((card["updated_at"] for card in metric_cards if card["updated_at"]), default=None)
 
     status_cards = {
         "catalog": {"label": "Catalog", "status": "online" if catalog_health else "offline"},
@@ -429,15 +765,21 @@ async def _collect_snapshot(room_id: str) -> dict[str, Any]:
 
     return {
         "room_id": room_id,
+        "room_found": bool(room_data),
         "status_cards": status_cards,
         "room": room_data,
-        "rooms": rooms.get("data", []) if isinstance(rooms, dict) else [],
+        "rooms": (rooms.get("data") or []) if isinstance(rooms, dict) else [],
         "services": services_data,
-        "thingspeak_rooms": thingspeak_rooms,
+        "thingspeak_rooms": _label_thingspeak_fields(thingspeak_rooms, devices_data),
         "prediction": prediction_data,
         "decision_states": decision_data,
         "history": telemetry,
         "latest": latest,
+        "metric_cards": metric_cards,
+        "has_readings": any(card["has_value"] for card in metric_cards),
+        "device_rows": _build_device_rows(room_data, decision_data, room_id, metric_cards),
+        "policy_rows": _build_policy_rows(room_data, metric_cards),
+        "updated_at": updated_at,
         "service_urls": service_urls,
     }
 
@@ -457,7 +799,7 @@ def _apply_env_updates(values: dict[str, str | None]) -> list[str]:
         if value is None:
             continue
         cleaned = value.strip()
-        if cleaned == "":
+        if cleaned == "" or current.get(key) == cleaned:
             continue
         current[key] = cleaned
         os.environ[key] = cleaned
@@ -556,15 +898,18 @@ async def dashboard(request: Request, room_id: str | None = None, message: str |
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    room_id = room_id or get_default_room_id()
+    if not room_id:
+        # Fall back to the first catalog room when the default one was deleted.
+        room_id = get_default_room_id()
+        rooms = await _fetch_json(f"{get_service_urls()['catalog']}/rooms")
+        room_ids = [room.get("room_id") for room in ((rooms.get("data") or []) if isinstance(rooms, dict) else [])]
+        if room_ids and room_id not in room_ids:
+            room_id = room_ids[0]
     context = await _collect_snapshot(room_id)
     context.update(
         request=request,
         current_user=current_user,
         is_admin=current_user.get("role") == "admin",
-        admin_url="/admin/env",
-        logout_url="/logout",
-        register_url="/register",
         page_message=message,
     )
     return TEMPLATES.TemplateResponse(request=request, name="index.html", context=context)
@@ -576,32 +921,15 @@ async def admin_env(request: Request, message: str | None = None, error: str | N
     if isinstance(current_user, RedirectResponse):
         return current_user
 
-    service_urls = get_service_urls()
-    default_room_id = get_default_room_id()
-    room_snapshot = await _fetch_json(f"{service_urls['catalog']}/room/{default_room_id}")
-    devices_snapshot = await _fetch_json(f"{service_urls['catalog']}/devices")
-    room_data = room_snapshot.get("data", {}) if isinstance(room_snapshot, dict) else {}
-    room_targets = room_data.get("policies", []) if isinstance(room_data, dict) else []
-    all_devices = devices_snapshot.get("data", []) if isinstance(devices_snapshot, dict) else []
-    room_devices = [
-        device
-        for device in all_devices
-        if device.get("room_id") == default_room_id and device.get("category") == "actuator"
-    ]
-    if not room_devices and isinstance(room_data, dict):
-        room_devices = room_data.get("devices", [])
-
     context = _admin_context()
-    context["request"] = request
-    context["current_user"] = current_user
-    context["managed_users"] = auth_store.list_users_for_admin(int(current_user["id"]))
-    context["default_room_id"] = default_room_id
-    context["room_targets"] = room_targets
-    context["room_devices"] = [device for device in room_devices if device.get("category") == "actuator"] or room_devices
-    context["dashboard_url"] = "/dashboard"
-    context["logout_url"] = "/logout"
-    context["message"] = message
-    context["error"] = error
+    context.update(
+        request=request,
+        current_user=current_user,
+        is_admin=True,
+        managed_users=auth_store.list_users_for_admin(int(current_user["id"])),
+        message=message,
+        error=error,
+    )
     return TEMPLATES.TemplateResponse(request=request, name="admin_env.html", context=context)
 
 
@@ -615,9 +943,7 @@ async def admin_management(request: Request, message: str | None = None, error: 
     context.update(
         request=request,
         current_user=current_user,
-        dashboard_url="/dashboard",
-        admin_env_url="/admin/env",
-        logout_url="/logout",
+        is_admin=True,
         message=message,
         error=error,
     )
@@ -751,6 +1077,18 @@ async def admin_update_room(
     return RedirectResponse(_message_url("/admin/management", message=f"Room {room_id} updated."), status_code=303)
 
 
+@app.post("/admin/management/rooms/{room_id}/delete")
+async def admin_delete_room(request: Request, room_id: str):
+    current_user = _require_admin_user(request)
+    if isinstance(current_user, RedirectResponse):
+        return current_user
+    try:
+        await _catalog_delete(f"/rooms/{room_id}")
+    except Exception as exc:
+        return RedirectResponse(_message_url("/admin/management", error=f"Unable to delete room: {getattr(exc, 'detail', exc)}"), status_code=303)
+    return RedirectResponse(_message_url("/admin/management", message=f"Room {room_id} deleted."), status_code=303)
+
+
 @app.post("/admin/management/devices/{device_id}/update")
 async def admin_update_device(
     request: Request,
@@ -782,7 +1120,6 @@ async def admin_update_device(
 @app.post("/admin/management/policies/create")
 async def admin_management_create_policy(
     request: Request,
-    policy_id: str = Form(...),
     room_id: str = Form(...),
     metric: str = Form(...),
     operator: str = Form(...),
@@ -790,18 +1127,20 @@ async def admin_management_create_policy(
     target_device: str = Form(...),
     target_state: str = Form(...),
     priority: int = Form(1),
+    policy_id: str | None = Form(None),
 ):
     current_user = _require_admin_user(request)
     if isinstance(current_user, RedirectResponse):
         return current_user
     if operator not in ALLOWED_POLICY_OPERATORS:
         return RedirectResponse(_message_url("/admin/management", error="Unsupported policy operator."), status_code=303)
+    threshold = _normalize_policy_value(value)
     payload = {
-        "policy_id": policy_id.strip(),
+        "policy_id": (policy_id or "").strip() or _build_policy_id(room_id.strip(), metric.strip().lower(), operator, threshold, target_device.strip()),
         "room_id": room_id.strip(),
         "metric": metric.strip().lower(),
         "operator": operator,
-        "value": _normalize_policy_value(value),
+        "value": threshold,
         "target_device": target_device.strip(),
         "target_state": target_state.strip().upper(),
         "priority": priority,

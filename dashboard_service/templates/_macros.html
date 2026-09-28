@@ -1,0 +1,9 @@
+{# Timestamp rendered in UTC on the server; _base.html localizes it in the browser. #}
+{% macro when(value, format='relative') -%}
+  {%- set stamp = value|iso -%}
+  {%- if stamp -%}
+    <time datetime="{{ stamp }}"{% if format == 'clock' %} data-format="clock"{% endif %}>{{ stamp[11:16] }} UTC</time>
+  {%- else -%}
+    <span class="muted">—</span>
+  {%- endif -%}
+{%- endmacro %}
