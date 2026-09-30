@@ -4,6 +4,10 @@
 
 The Prediction Service gives the Decision Service a forward-looking view of indoor air quality.
 
+Its HTTP interface runs on CherryPy at port `8003`. The successful JSON contracts
+remain compatible with the previous FastAPI implementation. Swagger `/docs` is
+not provided.
+
 It does not publish actuation commands and it does not decide which device to turn on.
 
 ## Caller
@@ -41,6 +45,7 @@ Purpose:
 
 - `room_id` is required
 - `horizon_minutes` should stay between `1` and `180`
+- `lookback_points`, when supplied, must stay between `3` and `288`
 - `lookback_points` controls how much indoor history the service requests from ThingSpeak Adapter
 - `Decision Service` does not send telemetry history directly in the final design
 
@@ -51,6 +56,14 @@ Purpose:
 - `outdoor` reflects the AQI input used for the forecast
 - `risk` is one of `normal`, `warning`, or `critical`
 - `summary` is designed for logs, debugging, and later alerting
+
+### Error Responses
+
+Errors use JSON `{"detail": ...}`. Validation failures return `422` with an error
+list, missing indoor history returns `404`, upstream HTTP/network failures return
+`502`, and upstream timeouts return `504`. A configured WAQI outage can still fail
+the request. An unset token returns an unconfigured outdoor snapshot and permits
+indoor forecasting to continue.
 
 ## Team Integration Notes
 
@@ -70,12 +83,10 @@ Expected payload:
 ```json
 {
   "service_id": "prediction-service",
-  "name": "Prediction Service",
-  "version": "0.2.0",
-  "base_url": "http://prediction:8002",
-  "endpoints": ["GET /health", "POST /predict"],
-  "capabilities": ["short-term-iaq-forecasting", "outdoor-aqi-enrichment"],
-  "status": "online"
+  "service_name": "prediction-service",
+  "type": "prediction",
+  "endpoint": "http://prediction-service:8003",
+  "health_endpoint": "/health"
 }
 ```
 

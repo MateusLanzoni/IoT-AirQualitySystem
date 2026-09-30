@@ -1,6 +1,6 @@
 # Prediction Service
 
-FastAPI service for AirGuard indoor air quality forecasting.
+CherryPy service for AirGuard indoor air quality forecasting.
 
 ## Purpose
 
@@ -24,8 +24,25 @@ pip install -r requirements.txt
 OUTDOOR_AQI_TOKEN="your-token-here" \
 ROOM_CATALOG_BASE_URL="http://localhost:8001" \
 THINGSPEAK_ADAPTER_BASE_URL="http://localhost:8000" \
-uvicorn app.main:app --host 0.0.0.0 --port 8003
+python -m app.main
 ```
+
+CherryPy listens on `0.0.0.0` using `PORT` (default `8003`). Requests and
+downstream HTTPX calls are synchronous and handled by CherryPy worker threads.
+Forecasting, risk classification, training and the Pydantic schemas are unchanged.
+
+## Run with Docker Compose
+
+From the repository root:
+
+```bash
+docker compose up -d --build prediction-service
+curl http://localhost:8003/health
+curl "http://localhost:8003/prediction/room1"
+```
+
+The existing Compose service name, port, dependency URLs and environment variables
+remain compatible. Other services do not need framework changes to call Prediction.
 
 ## Endpoints
 
@@ -81,6 +98,24 @@ curl -X POST http://localhost:8003/predict \
   -H "Content-Type: application/json" \
   -d '{"room_id":"room1","horizon_minutes":15,"lookback_points":12}'
 ```
+
+CherryPy does not generate Swagger/OpenAPI automatically, so `/docs` is no longer
+available. Use the examples above or Postman for the presentation demo.
+
+## Validation and Errors
+
+Pydantic still validates requests. `horizon_minutes` must be `1`–`180` and
+`lookback_points`, when supplied, must be `3`–`288`. Invalid body/query values
+return HTTP `422` with a JSON `detail` list. Malformed JSON returns `400`;
+unsupported body content types return `415`; unsupported methods return `405`.
+
+No indoor history returns `404` with a JSON `detail` message. Upstream HTTP/network
+failures return `502`, and upstream timeouts return `504`. Unexpected errors return
+a generic JSON `500` without tracebacks or dependency URLs in the response.
+
+Without a WAQI token, forecasting continues with `aqi: null` and
+`source: "unconfigured"`. A configured WAQI outage still fails that forecast
+request; this migration does not add caching, retries or an outage fallback.
 
 ## Environment Variables
 
@@ -157,3 +192,25 @@ services/prediction/model/model.joblib
 ```
 
 Model artifacts are ignored by git. Without a trained model, the service uses a heuristic baseline.
+
+## Tests
+
+After installing `requirements.txt`, run from `services/prediction`:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Tests launch a real CherryPy process on a temporary port and use local HTTP
+fixtures for Catalog, Adaptor and WAQI. They cover the four endpoint contracts,
+validation, registration/heartbeat, missing data, dependency failures, concurrent
+requests, model loading and graceful shutdown. The model fixture tests inference
+plumbing, not the Random Forest's predictive accuracy. Live credentials are not needed.
+
+## Presentation Update
+
+In the supplied presentation, change slide 24's Prediction framework label to
+`CherryPy - ML forecaster + baseline`, and slide 26 to `Exposed via CherryPy`.
+For the demo, use curl or Postman instead of the old `/docs` page. Explain that
+Prediction uses threaded synchronous REST handling; the other services' MQTT
+architecture is separate from this migration.
