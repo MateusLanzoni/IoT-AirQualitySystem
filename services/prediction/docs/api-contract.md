@@ -121,3 +121,25 @@ The field mapping follows the current sensor/adaptor branch:
   - `GET https://api.waqi.info/feed/@13202/?token=...`
 - the client reads:
   - `data.aqi`
+
+## Model Visibility
+
+`GET /health` includes `model` diagnostics and `last_inference`. `model_source`
+indicates the forecaster loaded at startup. `model.loaded` and
+`model.self_test == "passed"` indicate artifact validation and an inference probe,
+not measured accuracy or successful access to live room data.
+
+`POST /predict` includes `model_diagnostics`; `GET /prediction/{room_id}` adds
+`data.model_source` and `data.model_diagnostics` without changing the existing
+`data.predictions` wrapper. The per-response source is authoritative for which
+model actually produced that forecast.
+
+A model trained for one horizon uses baseline for other horizons with an explicit
+`unsupported_horizon` reason. Insufficient recent feature history or model inference
+failure likewise uses baseline and reports why. No artifact returns
+`artifact_missing` in startup diagnostics. Legacy artifacts must be retrained.
+
+The CSV-trained RF has no historical outdoor AQI training feature variation; it
+uses AQI zero during inference. This is separate from the baseline's AQI enrichment.
+The forecast reference time is the newest history bin, not necessarily wall-clock
+now; `forecast_reference_at` exposes that distinction.

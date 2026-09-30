@@ -175,7 +175,7 @@ def normalize_points(items: list[dict[str, Any]], room_id: str) -> list[HistoryP
     for item in items:
         try:
             points.append(HistoryPoint.model_validate(normalize_point(item, room_id)))
-        except (TypeError, ValidationError, ValueError):
+        except (AttributeError, TypeError, ValidationError, ValueError):
             continue
     return sorted(points, key=lambda point: point.timestamp)
 
@@ -194,12 +194,10 @@ def derive_latest(points: list[HistoryPoint]) -> IndoorSnapshot | None:
                 return value
         return None
 
-    return IndoorSnapshot(
-        temperature=last_value("temperature"),
-        humidity=last_value("humidity"),
-        co2=last_value("co2"),
-        pm25=last_value("pm25"),
-    )
+    values = {metric: last_value(metric) for metric in ("temperature", "humidity", "co2", "pm25")}
+    if any(value is None for value in values.values()):
+        return None
+    return IndoorSnapshot(**values)
 
 
 def format_utc(end: datetime) -> str:

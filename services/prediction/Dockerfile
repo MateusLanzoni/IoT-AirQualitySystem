@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY model ./model
+COPY train.py check_model.py ./
 
 EXPOSE 8003
 

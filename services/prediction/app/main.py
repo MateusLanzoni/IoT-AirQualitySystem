@@ -116,6 +116,8 @@ class PredictionAPI:
             "status": "ok",
             "service": "prediction",
             "model_source": getattr(self.service.forecaster, "source", "unknown"),
+            "model": self.service.forecaster.diagnostics,
+            "last_inference": self.service.last_inference,
             "default_horizon_minutes": settings.default_horizon_minutes,
             "default_lookback_points": settings.default_lookback_points,
             "room_catalog_registration": self.service.registration_state,

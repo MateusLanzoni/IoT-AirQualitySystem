@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 
 from .clients import ClientBundle
 from .config import settings
-from .forecasting import load_forecaster
+from .forecasting import BaselineForecaster, ModelInferenceUnavailable, load_forecaster
 from .risk import classify_risk
 from .schemas import PredictionRequest, PredictionResponse, ServiceRegistrationPayload
 
@@ -23,6 +24,7 @@ class PredictionService:
         self.clients = clients
         self.forecaster = load_forecaster(settings.model_path)
         self.registration_state = "not-started"
+        self.last_inference = {"status": "not-run"}
 
     def register(self) -> None:
         payload = ServiceRegistrationPayload(
@@ -53,29 +55,43 @@ class PredictionService:
 
         latest = history_response.latest
         if latest is None:
-            raise PredictionServiceError(status_code=500, detail="Unable to derive the latest indoor snapshot from history")
+            raise PredictionServiceError(status_code=404, detail="History does not contain all four indoor metrics")
 
         outdoor = self.clients.outdoor_aqi.fetch_current(request.outdoor_aqi_override)
-        forecast = self.forecaster.predict_from_series(
-            history=history_response.points,
-            indoor_latest=latest,
-            outdoor_aqi=outdoor.aqi,
-            horizon_minutes=request.horizon_minutes,
-            timestamp=request.timestamp or datetime.now(timezone.utc),
-        )
+        arguments = dict(history=history_response.points, indoor_latest=latest,
+                         outdoor_aqi=outdoor.aqi, horizon_minutes=request.horizon_minutes,
+                         timestamp=request.timestamp or datetime.now(timezone.utc))
+        active_forecaster = self.forecaster
+        diagnostics = dict(self.forecaster.diagnostics)
+        try:
+            forecast = active_forecaster.predict_from_series(**arguments)
+        except ModelInferenceUnavailable as exc:
+            active_forecaster = BaselineForecaster()
+            diagnostics["fallback_reason"] = str(exc)
+            logging.getLogger(__name__).warning("Request using baseline: %s", exc)
+            forecast = active_forecaster.predict_from_series(**arguments)
+        diagnostics["inference_model_source"] = active_forecaster.source
+        reference = max(point.timestamp for point in history_response.points).astimezone(timezone.utc)
+        if active_forecaster.source == "trained-model":
+            reference = reference.replace(minute=reference.minute // 5 * 5, second=0, microsecond=0)
+        diagnostics["forecast_reference_at"] = reference.isoformat()
+        self.last_inference = {"status": "succeeded", "model_source": active_forecaster.source,
+                               "fallback_reason": diagnostics.get("fallback_reason"),
+                               "room_id": request.room_id}
         risk, summary = classify_risk(forecast)
 
         return PredictionResponse(
             room_id=request.room_id,
             generated_at=datetime.now(timezone.utc),
             horizon_minutes=request.horizon_minutes,
-            model_source=getattr(self.forecaster, "source", "unknown"),
+            model_source=active_forecaster.source,
             indoor_latest=latest,
             outdoor=outdoor,
             history_points_used=len(history_response.points),
             prediction=forecast,
             risk=risk,
             summary=summary,
+            model_diagnostics=diagnostics,
         )
 
     @staticmethod
@@ -97,5 +113,7 @@ class PredictionService:
                 "predictions": predictions,
                 "risk": response.risk,
                 "summary": response.summary,
+                "model_source": response.model_source,
+                "model_diagnostics": response.model_diagnostics,
             },
         }

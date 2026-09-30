@@ -21,12 +21,15 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import joblib
-from sklearn.dummy import DummyRegressor
+import pandas as pd
+import numpy as np
+from app.training import train_model_from_csv
 
 
 SERVICE_DIR = Path(__file__).resolve().parents[1]
 METRICS = {"temperature", "humidity", "co2", "pm25"}
 HISTORY = [
+    {"created_at": "2026-09-30T08:55:00Z", "field2": "19", "field3": "39", "field4": "590", "field5": "9"},
     {"created_at": "2026-09-30T09:00:00Z", "field2": "20", "field3": "40", "field4": "600", "field5": "10"},
     {"created_at": "2026-09-30T09:05:00Z", "field2": "21", "field3": "41", "field4": "610", "field5": "11"},
     {"created_at": "2026-09-30T09:10:00Z", "field2": "22", "field3": "42", "field4": "620", "field5": "12"},
@@ -94,6 +97,9 @@ class RunningService:
         self.base_url = f"http://127.0.0.1:{self.port}"
         upstream_url = f"http://127.0.0.1:{upstream.server_port}"
         env = os.environ.copy()
+        # Local fixtures must not inherit the host's outbound proxy configuration.
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+            env.pop(key, None)
         env.update({
             "PORT": str(self.port),
             "MODEL_PATH": str(model_path),
@@ -107,6 +113,7 @@ class RunningService:
             "DEFAULT_HORIZON_MINUTES": "15",
             "DEFAULT_LOOKBACK_POINTS": "12",
         })
+        self.environment = env
         self.process = subprocess.Popen(
             [sys.executable, "-m", "app.main"], cwd=SERVICE_DIR, env=env,
             stdout=self.log, stderr=subprocess.STDOUT,
@@ -185,7 +192,7 @@ class HttpContractTests(unittest.TestCase):
             "timestamp": "2026-09-30T09:15:00Z", "outdoor_aqi_override": 50,
         }))
         self.assertEqual(data["model_source"], "heuristic-baseline")
-        self.assertEqual(data["history_points_used"], 3)
+        self.assertEqual(data["history_points_used"], 4)
         self.assertEqual(data["indoor_latest"], {"temperature": 22, "humidity": 42, "co2": 620, "pm25": 12})
         self.assertEqual(data["prediction"], {"temperature": 23.25, "humidity": 43.5, "co2": 650, "pm25": 17})
         self.assertEqual(data["outdoor"]["source"], "override")
@@ -301,19 +308,68 @@ class HttpContractTests(unittest.TestCase):
             if server:
                 server.close()
 
+    def test_train_from_adaptor_cli_and_check_model(self):
+        saved = HISTORY[:]
+        i = np.arange(100)
+        stamps = pd.date_range("2026-09-29", periods=100, freq="5min", tz="UTC")
+        HISTORY[:] = [{"created_at": stamp.isoformat(), "field2": 20+float(np.sin(n/8)),
+                       "field3": 45+float(np.cos(n/9)), "field4": 600+n,
+                       "field5": 10+float(np.sin(n/7))} for n, stamp in enumerate(stamps)]
+        path = Path(self.tempdir.name) / "cli-model.joblib"
+        env = {**self.server.environment, "MODEL_PATH": str(path)}
+        try:
+            missing = subprocess.run([sys.executable, "check_model.py"], cwd=SERVICE_DIR,
+                                     env=env, capture_output=True, text=True, timeout=15)
+            self.assertEqual(missing.returncode, 1)
+            self.assertEqual(json.loads(missing.stdout)["fallback_reason"], "artifact_missing")
+            result = subprocess.run([sys.executable, "train.py", "--room-id", "room1", "--output-path", str(path)],
+                                    cwd=SERVICE_DIR, env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(path.is_file())
+            checked = subprocess.run([sys.executable, "check_model.py"], cwd=SERVICE_DIR,
+                                     env=env, capture_output=True, text=True, timeout=15)
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+            self.assertEqual(json.loads(checked.stdout)["model_source"], "trained-model")
+        finally:
+            HISTORY[:] = saved
+
     def test_model_artifact_path(self):
-        # A controlled sklearn fixture verifies loading/inference, not ML accuracy.
-        model = DummyRegressor(strategy="constant", constant=[24, 45, 800, 15])
-        model.fit([[0] * 32, [1] * 32], [[24, 45, 800, 15]] * 2)
+        # Train actual RFs. Synthetic data tests execution only.
+        i = np.arange(100)
+        csv = Path(self.tempdir.name) / "training-fixture.csv"
+        pd.DataFrame({"timestamp": pd.date_range("2026-09-29", periods=100, freq="5min", tz="UTC"),
+                      "temperature": 20 + np.sin(i / 8), "humidity": 45 + np.cos(i / 9),
+                      "co2": 600 + i, "pm25": 10 + np.sin(i / 7)}).to_csv(csv, index=False)
         path = Path(self.tempdir.name) / "fixture.joblib"
-        joblib.dump(model, path)
+        train_model_from_csv(str(csv), str(path))
         server = RunningService(self.upstream, path)
         try:
-            self.assertEqual(self.assert_json(server.client.get("/health"))["model_source"], "trained-model")
+            health = self.assert_json(server.client.get("/health"))
+            self.assertEqual(health["model_source"], "trained-model")
+            self.assertEqual(health["model"]["self_test"], "passed")
+            self.assertIn("RandomForestRegressor", health["model"]["model_type"])
             data = self.assert_json(server.client.post("/predict", json={"room_id": "room1"}))
-            self.assertEqual(data["prediction"], {"temperature": 24, "humidity": 45, "co2": 800, "pm25": 15})
+            self.assertEqual(data["model_source"], "trained-model")
+            self.assertEqual(set(data["prediction"]), METRICS)
+            self.assertTrue(all(np.isfinite(value) for value in data["prediction"].values()))
+            health = self.assert_json(server.client.get("/health"))
+            self.assertEqual(health["last_inference"]["model_source"], "trained-model")
+            decision = self.assert_json(server.client.get("/prediction/room1"))
+            self.assertEqual(decision["data"]["model_source"], "trained-model")
+            fallback = self.assert_json(server.client.get("/prediction/room1?horizon_minutes=30"))
+            self.assertEqual(fallback["data"]["model_source"], "heuristic-baseline")
+            self.assertEqual(fallback["data"]["model_diagnostics"]["fallback_reason"], "unsupported_horizon")
+            saved = HISTORY[:]
+            try:
+                HISTORY[:] = saved[-2:]
+                fallback = self.assert_json(server.client.post("/predict", json={"room_id": "room1"}))
+                self.assertEqual(fallback["model_source"], "heuristic-baseline")
+                self.assertEqual(fallback["model_diagnostics"]["fallback_reason"], "insufficient_recent_history")
+            finally:
+                HISTORY[:] = saved
         finally:
             server.close()
+
 
 
 if __name__ == "__main__":

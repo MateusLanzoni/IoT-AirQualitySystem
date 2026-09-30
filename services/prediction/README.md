@@ -29,7 +29,7 @@ python -m app.main
 
 CherryPy listens on `0.0.0.0` using `PORT` (default `8003`). Requests and
 downstream HTTPX calls are synchronous and handled by CherryPy worker threads.
-Forecasting, risk classification, training and the Pydantic schemas are unchanged.
+Risk classification remains compatible. Training and model inference share a corrected feature pipeline.
 
 ## Run with Docker Compose
 
@@ -122,7 +122,7 @@ request; this migration does not add caching, retries or an outage fallback.
 | Variable | Default |
 | --- | --- |
 | `PORT` | `8003` |
-| `MODEL_PATH` | `/app/model/model.joblib` |
+| `MODEL_PATH` | `<prediction-service-directory>/model/model.joblib` (`/app/model/model.joblib` in Docker) |
 | `ROOM_CATALOG_BASE_URL` | `http://catalog-service:8001` |
 | `THINGSPEAK_ADAPTER_BASE_URL` | `http://adaptor-service:8000` |
 | `THINGSPEAK_ADAPTER_HISTORY_PATH` | `/api/v1/history` |
@@ -175,23 +175,106 @@ Payload:
 }
 ```
 
-## Training
+## Train and Verify Random Forest
+
+A fresh checkout contains no trained model. Until you train and restart Prediction,
+`heuristic-baseline` is the expected mode. A successful HTTP response alone does
+not prove Random Forest inference.
+
+The most direct route uses the room history already available through your Adaptor.
+From the repository root, with your existing environment configuration:
 
 ```bash
-python3 services/prediction/train.py --csv-path /path/to/data.csv
+docker compose up -d --build prediction-service
+docker compose exec prediction-service python train.py --room-id room1 --horizon-minutes 15
+# Save the artifact and evaluation before any future container rebuild.
+docker cp airguard-prediction:/app/model/model.joblib services/prediction/model/model.joblib
+docker cp airguard-prediction:/app/model/model.metrics.json services/prediction/model/model.metrics.json
+docker compose restart prediction-service
+docker compose exec prediction-service python check_model.py
+curl http://localhost:8003/health
+curl "http://localhost:8003/prediction/room1?horizon_minutes=15"
 ```
+
+Stop if training fails; do not proceed as though a model was created. Training
+needs at least 30 usable samples after five-minute aggregation, lags and targets,
+plus sufficient samples for the purged evaluation split. The room-history command
+uses the configured Adaptor URL and history window. It does not need a WAQI token.
+
+If `MODEL_PATH` is overridden, use that container path in the copy commands.
+The default local path now also works when running outside Docker.
+
+To train from your own CSV or a ZIP containing exactly one CSV, from
+`services/prediction` with the pinned requirements installed:
 
 ```bash
-python3 services/prediction/train.py --zip-path /path/to/archive.zip
+python train.py --csv-path /absolute/path/to/room-data.csv --horizon-minutes 15
+# Or: python train.py --zip-path /absolute/path/to/room-data.zip
+python check_model.py
 ```
 
-The trained model is written to:
+Train with the same scikit-learn version as the service. Model files and evaluation
+reports are ignored by Git; no synthetic demo model is packaged.
 
-```text
-services/prediction/model/model.joblib
+### Evidence that your model exists and works
+
+`check_model.py` exits zero only after the file is loaded, verified as four fitted
+Random Forest regressors, checked against the shared input schema and runtime
+version, and exercised with an inference self-test. It checks the file on disk;
+restart Prediction to load a newly trained file into the running server.
+
+In `/health`, look for:
+
+```json
+{
+  "model_source": "trained-model",
+  "model": {
+    "loaded": true,
+    "self_test": "passed",
+    "fallback_reason": null,
+    "model_type": "MultiOutputRegressor[RandomForestRegressor]"
+  }
+}
 ```
 
-Model artifacts are ignored by git. Without a trained model, the service uses a heuristic baseline.
+This is an excerpt. Next call `/prediction/room1?horizon_minutes=15`: its
+`data.model_source` must also be `trained-model`. `/predict` reports the same
+information at the top level. `/health` then reports the last successful
+inference's model source. These checks distinguish loading from real room inference.
+
+If a request uses baseline, inspect `model_diagnostics.fallback_reason` (inside
+`data` for the Decision endpoint). Missing/corrupt/legacy artifacts, incompatible
+versions, insufficient recent history and unsupported horizons are visible.
+A loaded model remains available while an individual unsupported request uses
+baseline; therefore check the response source, not just `/health`.
+
+### What was repaired
+
+- ThingSpeak CSV mapping is `field4` CO2 and `field5` PM2.5, matching runtime.
+- Training/inference use identical 32 feature names and order.
+- Both aggregate in five-minute UTC bins; lags use distinct history bins.
+- Rolling statistics use three bins and population standard deviation in both paths.
+- Missing features only forward-fill up to three bins; future data never fills inputs.
+- Sparse sensor rows are retained, and four available metrics form the latest snapshot.
+- New versioned artifacts reject old models trained under the broken contract.
+- Chronological 80/20 evaluation purges training labels that reach the test period.
+  Per-metric MAE/RMSE and a persistence comparison are saved in `model.metrics.json`.
+  The deployable forest is then refitted on all usable samples.
+
+### Limits relevant to your presentation
+
+The model is trained for one horizon (15 minutes by default). Other horizons use
+baseline with an explicit `unsupported_horizon` reason. The CSV pipeline has no
+historical AQI labels: RF uses the indoor features with AQI fixed at zero; it does
+not claim learned outdoor enrichment. The baseline still uses AQI when available.
+
+Forecasts are anchored to the newest history bin, shown by
+`model_diagnostics.forecast_reference_at`. Old history produces an old reference;
+do not present it as a forecast of current room conditions.
+
+MAE/RMSE measure this dataset's held-out performance; there is no universal accuracy
+percentage. Compare with persistence before claiming an improvement. Tests use
+synthetic fixtures to verify software execution, not real-world predictive accuracy.
 
 ## Tests
 
@@ -204,8 +287,8 @@ python -m unittest discover -s tests -v
 Tests launch a real CherryPy process on a temporary port and use local HTTP
 fixtures for Catalog, Adaptor and WAQI. They cover the four endpoint contracts,
 validation, registration/heartbeat, missing data, dependency failures, concurrent
-requests, model loading and graceful shutdown. The model fixture tests inference
-plumbing, not the Random Forest's predictive accuracy. Live credentials are not needed.
+requests, model loading and graceful shutdown. The model fixtures train actual Random Forests and test inference
+plumbing, not real-world predictive accuracy. Live credentials are not needed.
 
 ## Presentation Update
 

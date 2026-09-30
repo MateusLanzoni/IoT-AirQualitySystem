@@ -6,6 +6,7 @@ from pydantic import ConfigDict
 
 
 class IndoorSnapshot(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     temperature: float = Field(..., description="Indoor temperature in Celsius.")
     humidity: float = Field(..., ge=0, le=100, description="Indoor relative humidity percentage.")
     co2: float = Field(..., ge=0, description="CO2 concentration in ppm.")
@@ -18,7 +19,12 @@ class OutdoorSnapshot(BaseModel):
     fetched_at: datetime | None = None
 
 
-class HistoryPoint(IndoorSnapshot):
+class HistoryPoint(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
+    temperature: float | None = None
+    humidity: float | None = Field(default=None, ge=0, le=100)
+    co2: float | None = Field(default=None, ge=0)
+    pm25: float | None = Field(default=None, ge=0)
     timestamp: datetime
     room_id: str | None = None
     device_id: str | None = None
@@ -53,6 +59,7 @@ class PredictionResponse(BaseModel):
     prediction: ForecastValues
     risk: str
     summary: str
+    model_diagnostics: dict[str, Any] | None = None
 
 
 class ServiceRegistrationPayload(BaseModel):
