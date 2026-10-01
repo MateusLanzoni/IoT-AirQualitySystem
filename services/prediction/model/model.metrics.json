@@ -1,0 +1,86 @@
+{
+  "artifact_version": 1,
+  "feature_columns": [
+    "temperature",
+    "temperature_lag_1",
+    "temperature_lag_2",
+    "temperature_lag_3",
+    "temperature_roll_mean",
+    "temperature_roll_std",
+    "temperature_trend",
+    "humidity",
+    "humidity_lag_1",
+    "humidity_lag_2",
+    "humidity_lag_3",
+    "humidity_roll_mean",
+    "humidity_roll_std",
+    "humidity_trend",
+    "co2",
+    "co2_lag_1",
+    "co2_lag_2",
+    "co2_lag_3",
+    "co2_roll_mean",
+    "co2_roll_std",
+    "co2_trend",
+    "pm25",
+    "pm25_lag_1",
+    "pm25_lag_2",
+    "pm25_lag_3",
+    "pm25_roll_mean",
+    "pm25_roll_std",
+    "pm25_trend",
+    "outdoor_aqi",
+    "horizon_minutes",
+    "hour",
+    "weekday"
+  ],
+  "targets": [
+    "temperature",
+    "humidity",
+    "co2",
+    "pm25"
+  ],
+  "interval_minutes": 5,
+  "horizon_minutes": 15,
+  "outdoor_aqi_trained": false,
+  "model_type": "MultiOutputRegressor[RandomForestRegressor]",
+  "sklearn_version": "1.5.2",
+  "trained_at": "2026-10-01T09:23:53.159104+00:00",
+  "data_start": "2026-09-16T10:30:00+00:00",
+  "data_end": "2026-09-28T14:45:00+00:00",
+  "training_samples": 475,
+  "evaluation": {
+    "method": "chronological_80_20_with_horizon_purge",
+    "training_samples": 377,
+    "test_samples": 95,
+    "train_end": "2026-09-27T20:50:00+00:00",
+    "test_start": "2026-09-27T21:10:00+00:00",
+    "metrics": {
+      "temperature": {
+        "mae": 0.577967036622182,
+        "rmse": 1.538684122033954,
+        "persistence_mae": 0.12586925647451974,
+        "persistence_rmse": 0.12713561295913361
+      },
+      "humidity": {
+        "mae": 0.010377299004294415,
+        "rmse": 0.015708966846253142,
+        "persistence_mae": 0.014085547201337527,
+        "persistence_rmse": 0.020978662545554912
+      },
+      "co2": {
+        "mae": 3.8917986790195696,
+        "rmse": 5.929265873997121,
+        "persistence_mae": 2.9068157894736824,
+        "persistence_rmse": 2.950926385744071
+      },
+      "pm25": {
+        "mae": 0.21836687171481875,
+        "rmse": 0.31785256391247,
+        "persistence_mae": 0.16942898913951535,
+        "persistence_rmse": 0.17164257669087815
+      }
+    },
+    "note": "Metrics are held-out estimates for this dataset; no accuracy percentage is claimed."
+  }
+}
