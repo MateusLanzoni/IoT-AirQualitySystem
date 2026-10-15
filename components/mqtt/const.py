@@ -5,7 +5,7 @@ airguard/room1/telemetry/sensor/sensor_001/
 """
 
 # Base namespace for the edge device
-TOPIC_PREFIX = "airguard/room1"
+TOPIC_PREFIX = "airguard/{room_id}"
 
 # Topic templates for routing
 # Usage format: airguard/room1/telemetry/<device_type>/<device_id>
@@ -18,6 +18,9 @@ TOPIC_STATE = f"{TOPIC_PREFIX}/state/{{device_type}}/{{device_id}}"
 # Subscribe to incoming commands from Decision Service
 # usage format: airguard/room1/command/<device_type>/<device_id>
 TOPIC_COMMAND = f"{TOPIC_PREFIX}/command/{{device_type}}/{{device_id}}"
+
+# Wildcard pattern to subscribe to commands for all rooms (or a specific room)
+TOPIC_COMMAND_ALL_ROOMS = "airguard/+/command/#"
 
 # Json keys
 PAYLOAD_KEY_DEVICE_ID = "device_id"

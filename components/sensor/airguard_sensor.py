@@ -27,8 +27,12 @@ class AirguardSensor(SensorEntity):
         
         self._state = new_value
 
+        device_type = self.device_class.value if self.device_class else "sensor"
+
         # Payload format
         event_data = {
+            "room_id": self.entity_description.room_id,
+            "device_type": device_type,
             "device_id": self.entity_description.key,
             "value": self._state,
             "unit": self.entity_description.native_unit_of_measurement,

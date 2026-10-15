@@ -11,7 +11,7 @@ from components.mqtt.const import (
     EVENT_STATE_CHANGED,
     EVENT_COMMAND_RECEIVED,
     TOPIC_TELEMETRY,
-    TOPIC_PREFIX
+    TOPIC_COMMAND_ALL_ROOMS
 )
 from components.mqtt.schemas import TelemetryMessage, CommandMessage
 
@@ -61,6 +61,14 @@ class MQTTGateway:
             return
 
         try:
+            # extract roome_id from event data
+            room_id = event.data.get("room_id")
+            if not room_id:
+                _LOGGER.warning("Missing 'room_id'.")
+                return
+
+            device_type = event.data.get("device_type", "sensor")
+
             raw_payload = {
                 "device_id": event.data["device_id"],
                 "value": event.data["value"],
@@ -71,7 +79,8 @@ class MQTTGateway:
             validated_msg = TelemetryMessage(**raw_payload)
 
             topic = TOPIC_TELEMETRY.format(
-                device_type="device",
+                room_id = room_id,
+                device_type = device_type,
                 device_id=validated_msg.device_id
             )
 
@@ -88,29 +97,47 @@ class MQTTGateway:
     async def _listen_to_commands(self):
         """Listen to incoming commands and routes them to event bus."""
 
-        # Subscribe to all commands targeting this device
-        command_topic_pattern = f"{TOPIC_PREFIX}/command/#"
-        await self.client.subscribe(command_topic_pattern)
+        command_topic_patterns = [TOPIC_COMMAND_ALL_ROOMS, "control/#"]
+        for command_topic_pattern in command_topic_patterns:
+            await self.client.subscribe(command_topic_pattern)
+            _LOGGER.info(f"Subscribed to wildcard command topic: {command_topic_pattern}")
 
-        # Listening loop
         async for message in self.client.messages:
             try:
-                # Decode payload to string, then parse JSON
+                # Supported topic structures:
+                #   airguard/{room_id}/command/{device_type}/{device_id}
+                #   control/{room_id}/{device_id}/command
+                topic_str = str(message.topic)
+                segments = topic_str.split('/')
+
+                extracted_room_id = None
+                extracted_device_type = None
+
+                if len(segments) >= 5 and segments[0] == "airguard" and segments[2] == "command":
+                    extracted_room_id = segments[1]
+                    extracted_device_type = segments[3]
+                elif len(segments) >= 4 and segments[0] == "control" and segments[3] == "command":
+                    extracted_room_id = segments[1]
+                    extracted_device_type = None
+                else:
+                    continue
+
                 payload_str = message.payload.decode()
                 raw_data = json.loads(payload_str)
 
-                # Schema validation
-                # If a service sends wrong JSON (e.g. action="explode"), this will throw ValidationError
                 validated_cmd = CommandMessage(**raw_data)
+                cmd_dict = validated_cmd.model_dump()
 
-                _LOGGER.info(f"Received command for {validated_cmd.device_id}:{validated_cmd.action}")
+                # Attach extracted context to event data before routing to internal bus
+                cmd_dict["room_id"] = extracted_room_id
+                cmd_dict["device_type"] = extracted_device_type or cmd_dict.get("device_type") or "actuator"
 
-                # Route to event bus
-                # This will NOT excute the command, only pass the dict to bus.
-                await self.bus.async_fire(
-                    EVENT_COMMAND_RECEIVED,
-                    validated_cmd.model_dump()
+                _LOGGER.info(
+                    f"Received command for Room: {extracted_room_id}, "
+                    f"Device: {validated_cmd.device_id}, Action: {validated_cmd.action}"
                 )
+
+                await self.bus.async_fire(EVENT_COMMAND_RECEIVED, cmd_dict)
 
             except json.JSONDecodeError:
                 _LOGGER.warning(f"Wrong formed JSON:{message.topic.value}")

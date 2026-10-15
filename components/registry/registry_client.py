@@ -2,12 +2,12 @@ import httpx
 import logging
 import os
 import socket
-import asyncio
+import os
 
 logger = logging.getLogger(__name__)
 
-# Base URL for the Catalog Service. Defaults to the local test host but can be overridden for Docker.
-CATALOG_BASE_URL = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001")
+# Base URL for the Catalog Service.
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL", "http://catalog_service:8001")
 
 def get_local_ip():
     """Retrieve the container's routable IP address."""
@@ -24,8 +24,8 @@ class CatalogRegistry:
     def __init__(self):
         self.service_id = "thingspeak-adaptor"
         self.port = 8000
-        self.service_url = os.getenv("SERVICE_URL", f"http://127.0.0.1:{self.port}").rstrip("/")
-
+        self.ip = os.getenv("SERVICE_IP", get_local_ip())
+        
     async def register(self):
         """Send POST request to Catalog Service."""
         url = f"{CATALOG_BASE_URL}/services/register"

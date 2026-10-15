@@ -12,6 +12,7 @@ class AirguardActuator(ActuatorEntity):
         super().__init__(description)  # Static metadata is handled by the base class constructor
         self._driver = driver
         self.bus = bus
+        self._bus = bus
         self._attr_is_on = False
 
         self.bus.async_listen(EVENT_COMMAND_RECEIVED, self._on_command_received)
@@ -21,7 +22,10 @@ class AirguardActuator(ActuatorEntity):
         # Check device_id
         if event.data.get("device_id") != self.entity_description.key:
             return
-        action = event.data.get("action")
+        room_id = event.data.get("room_id")
+        if room_id and room_id != self.entity_description.room_id:
+            return
+        action = event.data.get("action", "").lower()
         if action == "turn_on":
             await self.async_turn_on()
         elif action == "turn_off":
@@ -29,7 +33,10 @@ class AirguardActuator(ActuatorEntity):
 
     def _fire_state_changed(self):
         """internal method, fire state change event to bus after state is updated."""
+        device_type = self.device_class.value if self.device_class else "actuator"
         changed_data = {
+            "room_id": self.entity_description.room_id,
+            "device_type": device_type,
             "device_id": self.entity_description.key,
             "value": "ON" if self._attr_is_on else "OFF"
         }
@@ -56,6 +63,5 @@ class AirguardActuator(ActuatorEntity):
 
         if old_state != self._attr_is_on:
             self._fire_state_changed()  # Fire event if state has changed
-
         _LOGGER.info(f"{self.name} updated: {'ON' if self._attr_is_on else 'OFF'}")
     
