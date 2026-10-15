@@ -16,7 +16,7 @@ services:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
-  
+
     #Network: keep microservices in the same virtual room
     networks:
       - airguard-network
@@ -30,9 +30,13 @@ services:
     command: ["python", "main_sensor.py"]
     depends_on:
       - mosquitto
+      - catalog-service
     environment:
-      
       - MQTT_BROKER=mosquitto
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      # Reach the catalog by its compose service name (not localhost).
+      - CATALOG_SERVICE_URL=http://catalog-service:8001
     networks:
       - airguard-network
     restart: unless-stopped
@@ -43,15 +47,120 @@ services:
     command: ["python", "main_adaptor.py"]
     depends_on:
       - mosquitto
+    ports:
+      - "8000:8000"
     environment:
       - MQTT_BROKER=mosquitto
-      - MQTT_USER=iot_admin
-      - MQTT_PASSWORD=airguard2026 
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - CATALOG_SERVICE_URL=http://catalog-service:8001
+      - SERVICE_URL=http://adaptor-service:8000
+      - THINGSPEAK_WRITE_API_KEY=${THINGSPEAK_WRITE_API_KEY}
+      - THINGSPEAK_READ_API_KEY=${THINGSPEAK_READ_API_KEY}
     networks:
       - airguard-network
     restart: unless-stopped
     volumes:
       - ./components/adaptor/config.yaml:/app/config.yaml:ro
+
+  dashboard-service:
+    build:
+      context: .
+      dockerfile: dashboard_service/Dockerfile
+    container_name: airguard-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - CATALOG_SERVICE_URL=http://catalog-service:8001
+      - PREDICTION_SERVICE_URL=http://prediction-service:8003
+      - DECISION_SERVICE_URL=http://decision-service:8002
+      - ADAPTOR_SERVICE_URL=http://adaptor-service:8000
+      - ADAPTOR_CONFIG_PATH=/app/adaptor_config.yaml
+      - ROOT_ENV_PATH=/app/.env
+      - DEFAULT_ROOM_ID=room1
+    volumes:
+      - ./.env:/app/.env:rw
+      - ./components/adaptor/config.yaml:/app/adaptor_config.yaml:ro
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  decision-service:
+    build: .
+    container_name: airguard-decision
+    command: ["python", "decision_service/main.py"]
+    depends_on:
+      - mosquitto
+      - catalog-service
+      - prediction-service
+    ports:
+      - "8002:8002"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - MQTT_BROKER=mosquitto
+      - CATALOG_BASE_URL=http://catalog-service:8001
+      - PREDICTION_BASE_URL=http://prediction-service:8003
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  # Room Catalog: device/service registry (REST). Prediction registers here.
+  catalog-service:
+    build:
+      context: .
+      dockerfile: catalog_service/Dockerfile
+    container_name: airguard-catalog
+    ports:
+      - "8001:8001"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - THINGSPEAK_READ_API_KEY=${THINGSPEAK_READ_API_KEY}
+    volumes:
+      - ./catalog_service/data:/app/data
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  # Prediction Service: short-term IAQ forecasting (REST).
+  # Reads room history from the adaptor and registers with the catalog.
+  prediction-service:
+    build:
+      context: ./services/prediction
+    container_name: airguard-prediction
+    depends_on:
+      - adaptor-service
+      - catalog-service
+    ports:
+      - "8003:8003"
+    environment:
+      - THINGSPEAK_ADAPTER_BASE_URL=http://adaptor-service:8000
+      - ROOM_CATALOG_BASE_URL=http://catalog-service:8001
+      - SERVICE_URL=http://prediction-service:8003
+      # How far back to look for room history. 20 days guarantees a forecast
+      # even if the sensor is not publishing live; lower it for tighter live data.
+      - HISTORY_LOOKBACK_DAYS=${HISTORY_LOOKBACK_DAYS:-20}
+      # Optional Turin outdoor AQI token (forecast still works without it).
+      - OUTDOOR_AQI_TOKEN=${OUTDOOR_AQI_TOKEN:-}
+    networks:
+      - airguard-network
+    restart: unless-stopped
+
+  telegram-notifier:
+    build:
+      context: ./telegram_notifier
+    container_name: airguard-telegram
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_ALERT_TOPIC=alert/#
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TELEGRAM_BOT_NAME=AirGuard Alerts
+    networks:
+      - airguard-network
+    restart: unless-stopped
 
 networks:
   airguard-network:

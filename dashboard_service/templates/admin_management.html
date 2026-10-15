@@ -1,0 +1,245 @@
+{% extends "_base.html" %}
+{% set active_page = 'management' %}
+{% set actuators = devices|selectattr('category', 'equalto', 'actuator')|list %}
+
+{% block title %}AirGuard · Management{% endblock %}
+
+{% block styles %}
+    .jump { display: flex; gap: 6px; flex-wrap: wrap; }
+    section[id] { scroll-margin-top: 80px; }
+
+    .add { border: 1px dashed var(--line-strong); border-radius: 12px; margin-bottom: 16px; }
+    .add > summary { padding: 11px 14px; font-weight: 700; color: var(--accent); }
+    .add > summary::before { content: "+ "; }
+    .add[open] > summary { border-bottom: 1px dashed var(--line-strong); }
+    .add form { padding: 14px; }
+    .form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .form-grid .wide { grid-column: span 2; }
+    .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+    .room { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 14px; }
+    .room + .room { margin-top: 12px; }
+    .room-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .room-delete { margin-left: auto; }
+    .room-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) auto; gap: 12px; align-items: end; }
+    .drift { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 9px 12px; border-radius: 10px; font-size: 13px; color: var(--warn); background: var(--warn-soft); }
+    .drift form { margin-left: auto; }
+
+    .edit-table td { padding: 8px 6px; }
+    .edit-table th { padding: 8px 6px; }
+    .edit-table td:first-child, .edit-table th:first-child { padding-left: 0; }
+    .edit-table td:last-child, .edit-table th:last-child { padding-right: 0; text-align: right; }
+    .edit-table input, .edit-table select { min-width: 90px; }
+    .edit-table .num { width: 90px; min-width: 70px; }
+    .id-cell { white-space: nowrap; }
+    .id-cell .mono { font-weight: 700; }
+    .row-actions { display: inline-flex; gap: 6px; }
+    .sentence { color: var(--muted); font-size: 12px; margin-top: 3px; white-space: normal; max-width: 260px; }
+    .inline { display: flex; gap: 6px; }
+
+    @media (max-width: 960px) {
+      .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .room-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .room-grid .full { grid-column: 1 / -1; }
+    }
+    @media (max-width: 560px) {
+      .form-grid, .room-grid { grid-template-columns: minmax(0, 1fr); }
+      .form-grid .wide { grid-column: auto; }
+    }
+{% endblock %}
+
+{% block content %}
+  {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+  {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+  <section class="page-head">
+    <div>
+      <span class="eyebrow">Catalog</span>
+      <h1>Rooms, devices &amp; policies</h1>
+      <p>This is the model the decision service reads: which devices belong to each room, and which rules turn actuators on or off.</p>
+    </div>
+    <nav class="jump" aria-label="Sections">
+      <a class="btn sm" href="#rooms">Rooms <span class="muted">{{ rooms|length }}</span></a>
+      <a class="btn sm" href="#devices">Devices <span class="muted">{{ devices|length }}</span></a>
+      <a class="btn sm" href="#policies">Policies <span class="muted">{{ policies|length }}</span></a>
+    </nav>
+  </section>
+
+  {# ── Rooms ───────────────────────────────────────────── #}
+  <section class="card" id="rooms">
+    <div class="card-head"><h2>Rooms</h2><span class="muted small">A room groups sensors, actuators and policies.</span></div>
+
+    <details class="add" {% if not rooms %}open{% endif %}>
+      <summary>Add room</summary>
+      <form method="post" action="/admin/management/rooms/create">
+        <div class="form-grid">
+          <div><label for="new-room-id">Room id</label><input id="new-room-id" name="room_id" placeholder="room2" required></div>
+          <div class="wide"><label for="new-room-devices">Device ids</label><input id="new-room-devices" name="device_ids" placeholder="temp_2, fan_2"><div class="hint">Comma-separated</div></div>
+          <div><label for="new-room-energy">Energy mode</label><select id="new-room-energy" name="energy_mode"><option>NORMAL</option><option>ENERGY_SAVING</option><option>COMFORT</option></select></div>
+          <div><label for="new-room-start">Active from</label><input id="new-room-start" name="schedule_start" value="08:00" type="time"></div>
+          <div><label for="new-room-end">Active until</label><input id="new-room-end" name="schedule_end" value="23:00" type="time"></div>
+        </div>
+        <div class="form-actions"><button class="btn primary" type="submit">Create room</button></div>
+      </form>
+    </details>
+
+    {% for room in rooms %}
+    <div class="room">
+      <div class="room-head">
+        <h3 class="mono">{{ room.room_id }}</h3>
+        <span class="muted small">{{ room.device_ids|length }} device{{ '' if room.device_ids|length == 1 else 's' }}</span>
+        {% set leftovers = [] %}
+        {% if room.assigned_device_count %}{% set _ = leftovers.append(room.assigned_device_count ~ ' device' ~ ('' if room.assigned_device_count == 1 else 's')) %}{% endif %}
+        {% if room.policy_count %}{% set _ = leftovers.append(room.policy_count ~ ' polic' ~ ('y' if room.policy_count == 1 else 'ies')) %}{% endif %}
+        <form class="room-delete" method="post" action="/admin/management/rooms/{{ room.room_id }}/delete">
+          <button class="btn sm danger" type="submit" data-confirm="Delete room {{ room.room_id }}?{% if leftovers %} Its {{ leftovers|join(' and ') }} will stay in the catalog but won't belong to any room until you reassign them.{% endif %} This can't be undone.">Delete room</button>
+        </form>
+      </div>
+      <form class="room-grid" method="post" action="/admin/management/rooms/{{ room.room_id }}/update">
+        <div class="full"><label for="room-{{ loop.index }}-devices">Device ids</label><input id="room-{{ loop.index }}-devices" name="device_ids" value="{{ room.device_ids|join(', ') }}"></div>
+        <div><label for="room-{{ loop.index }}-energy">Energy mode</label>
+          <select id="room-{{ loop.index }}-energy" name="energy_mode">
+            {% for mode in ['NORMAL', 'ENERGY_SAVING', 'COMFORT'] %}<option {% if room.energy_mode == mode %}selected{% endif %}>{{ mode }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label for="room-{{ loop.index }}-start">Active from</label><input id="room-{{ loop.index }}-start" type="time" name="schedule_start" value="{{ room.schedule.start if room.schedule else '08:00' }}"></div>
+        <div><label for="room-{{ loop.index }}-end">Active until</label><input id="room-{{ loop.index }}-end" type="time" name="schedule_end" value="{{ room.schedule.end if room.schedule else '23:00' }}"></div>
+        <div><button class="btn" type="submit">Save</button></div>
+      </form>
+      {% if room.unlisted_devices %}
+      <div class="drift">
+        <span><strong class="mono">{{ room.unlisted_devices|join(', ') }}</strong> {{ 'is' if room.unlisted_devices|length == 1 else 'are' }} assigned to this room but missing from its device list, so {{ "it doesn't" if room.unlisted_devices|length == 1 else "they don't" }} appear on the dashboard.</span>
+        <form method="post" action="/admin/management/rooms/{{ room.room_id }}/update">
+          <input type="hidden" name="device_ids" value="{{ (room.device_ids + room.unlisted_devices)|join(', ') }}">
+          <input type="hidden" name="energy_mode" value="{{ room.energy_mode or 'NORMAL' }}">
+          <input type="hidden" name="schedule_start" value="{{ room.schedule.start if room.schedule else '08:00' }}">
+          <input type="hidden" name="schedule_end" value="{{ room.schedule.end if room.schedule else '23:00' }}">
+          <button class="btn sm" type="submit">Add to list</button>
+        </form>
+      </div>
+      {% endif %}
+      {% if room.unknown_devices %}
+      <div class="drift"><span>Unknown device id{{ 's' if room.unknown_devices|length > 1 }}: <strong class="mono">{{ room.unknown_devices|join(', ') }}</strong> — no device with that id exists in the catalog.</span></div>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="muted">No rooms yet.</p>
+    {% endfor %}
+  </section>
+
+  {# ── Devices ─────────────────────────────────────────── #}
+  <section class="card" id="devices">
+    <div class="card-head"><h2>Devices</h2><span class="muted small">Edit metadata and room assignment. Each row saves on its own.</span></div>
+    <div class="table-wrap">
+      <table class="edit-table">
+        <thead><tr><th>Device</th><th>Name</th><th>Class</th><th>Category</th><th>Room</th><th>Unit</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          {% for device in devices %}
+          {% set fid = 'device-' ~ loop.index %}
+          <tr>
+            <td class="id-cell"><span class="mono">{{ device.key }}</span><form id="{{ fid }}" method="post" action="/admin/management/devices/{{ device.key }}/update"></form></td>
+            <td><input form="{{ fid }}" name="name" value="{{ device.name }}" aria-label="Name of {{ device.key }}" required></td>
+            <td><input form="{{ fid }}" name="device_class" value="{{ device.device_class }}" aria-label="Class of {{ device.key }}" required></td>
+            <td>
+              <select form="{{ fid }}" name="category" aria-label="Category of {{ device.key }}">
+                <option {% if device.category == 'sensor' %}selected{% endif %}>sensor</option>
+                <option {% if device.category == 'actuator' %}selected{% endif %}>actuator</option>
+              </select>
+            </td>
+            <td>
+              <select form="{{ fid }}" name="room_id" aria-label="Room of {{ device.key }}">
+                {% if device.room_id not in rooms|map(attribute='room_id')|list %}<option value="{{ device.room_id or '' }}" selected>{{ device.room_id or '— none —' }}</option>{% endif %}
+                {% for room in rooms %}<option value="{{ room.room_id }}" {% if room.room_id == device.room_id %}selected{% endif %}>{{ room.room_id }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input class="num" form="{{ fid }}" name="unit" value="{{ device.unit }}" aria-label="Unit of {{ device.key }}" placeholder="—"></td>
+            <td><button class="btn sm" form="{{ fid }}" type="submit">Save</button></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="muted">No devices registered.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {# ── Policies ────────────────────────────────────────── #}
+  <section class="card" id="policies">
+    <div class="card-head"><h2>Policies</h2><span class="muted small">When a reading matches, the decision service sets the device to the target state. Lower priority number wins conflicts.</span></div>
+
+    <datalist id="states"><option value="ON"><option value="OFF"><option value="OPEN"><option value="CLOSED"></datalist>
+
+    <details class="add" {% if not policies %}open{% endif %}>
+      <summary>Add policy</summary>
+      <form method="post" action="/admin/management/policies/create">
+        <div class="form-grid">
+          <div><label for="p-room">Room</label><select id="p-room" name="room_id">{% for room in rooms %}<option>{{ room.room_id }}</option>{% endfor %}</select></div>
+          <div><label for="p-metric">When</label><select id="p-metric" name="metric">{% for metric in metrics %}<option value="{{ metric.key }}">{{ metric.label }} ({{ metric.unit }})</option>{% endfor %}</select></div>
+          <div><label for="p-op">Is</label><select id="p-op" name="operator"><option value="&gt;">above (&gt;)</option><option value="&gt;=">at or above (≥)</option><option value="&lt;">below (&lt;)</option><option value="&lt;=">at or below (≤)</option><option value="==">equal to (=)</option></select></div>
+          <div><label for="p-value">Threshold</label><input id="p-value" name="value" type="number" step="0.1" value="30" required></div>
+          <div><label for="p-device">Then set</label><select id="p-device" name="target_device">{% for device in actuators %}<option value="{{ device.key }}">{{ device.key }} · {{ device_class_labels.get(device.device_class, device.device_class) }}</option>{% endfor %}</select></div>
+          <div><label for="p-state">To state</label><input id="p-state" name="target_state" list="states" value="ON" required></div>
+          <div><label for="p-priority">Priority</label><input id="p-priority" name="priority" type="number" min="1" value="1" required></div>
+          <div><label for="p-id">Policy id <span class="muted">(optional)</span></label><input id="p-id" name="policy_id" placeholder="Auto-generated"></div>
+        </div>
+        <div class="form-actions"><button class="btn primary" type="submit">Create policy</button></div>
+      </form>
+    </details>
+
+    <div class="table-wrap">
+      <table class="edit-table">
+        <thead><tr><th>Policy</th><th>When</th><th>Is</th><th>Threshold</th><th>Then set</th><th>To state</th><th>Priority</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          {% for policy in policies %}
+          {% set fid = 'policy-' ~ loop.index %}
+          {% set metric = metrics_by_key.get(policy.metric) %}
+          <tr>
+            <td class="id-cell">
+              <span class="mono">{{ policy.policy_id }}</span>
+              <div class="sentence">{{ policy.room_id }}: if {{ metric.label if metric else policy.metric }} {{ policy.operator }} {{ policy.value }}{{ ' ' ~ metric.unit if metric }} → {{ policy.target_device }} {{ policy.target_state }}</div>
+              <form id="{{ fid }}" method="post" action="/admin/management/policies/{{ policy.policy_id }}/update"></form>
+            </td>
+            <td>
+              <select form="{{ fid }}" name="metric" aria-label="Metric">
+                {% for m in metrics %}<option value="{{ m.key }}" {% if m.key == policy.metric %}selected{% endif %}>{{ m.label }}</option>{% endfor %}
+              </select>
+            </td>
+            <td>
+              <select class="num" form="{{ fid }}" name="operator" aria-label="Operator">
+                {% for op in ['>', '>=', '<', '<=', '=='] %}<option value="{{ op }}" {% if op == policy.operator %}selected{% endif %}>{{ op }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input class="num" form="{{ fid }}" name="value" type="number" step="0.1" value="{{ policy.value }}" aria-label="Threshold" required></td>
+            <td>
+              <select form="{{ fid }}" name="target_device" aria-label="Target device">
+                {% if policy.target_device not in actuators|map(attribute='key')|list %}<option selected>{{ policy.target_device }}</option>{% endif %}
+                {% for device in actuators %}<option {% if device.key == policy.target_device %}selected{% endif %}>{{ device.key }}</option>{% endfor %}
+              </select>
+            </td>
+            <td><input class="num" form="{{ fid }}" name="target_state" list="states" value="{{ policy.target_state }}" aria-label="Target state" required></td>
+            <td><input class="num" form="{{ fid }}" name="priority" type="number" min="1" value="{{ policy.priority }}" aria-label="Priority" required></td>
+            <td>
+              <span class="row-actions">
+                <button class="btn sm" form="{{ fid }}" type="submit">Save</button>
+                <button class="btn sm danger" form="{{ fid }}" type="submit" formaction="/admin/management/policies/{{ policy.policy_id }}/delete" data-confirm="Delete policy {{ policy.policy_id }}? This can't be undone.">Delete</button>
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="muted">No policies yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.querySelectorAll('[data-confirm]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        if (!window.confirm(button.dataset.confirm)) event.preventDefault();
+      });
+    });
+  </script>
+{% endblock %}

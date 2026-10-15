@@ -13,13 +13,15 @@ import yaml
 
 from components.adaptor.base import BaseTimeSeriesStorage
 from components.adaptor.thingspeak import ThingSpeakProvider
+from env_loader import expand_env_values, load_env_file
 
 logger = logging.getLogger(__name__)
 
 
 def load_config() -> Dict[str, Any]:
-    with open("components/adaptor/config.yaml", "r") as f:
-        return yaml.safe_load(f)
+    load_env_file(Path(__file__).resolve().parents[2] / ".env")
+    with open("components/adaptor/config.yaml", "r", encoding="utf-8") as f:
+        return expand_env_values(yaml.safe_load(f))
 
 
 _config = load_config()

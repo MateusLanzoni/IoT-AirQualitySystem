@@ -1,10 +1,12 @@
 import logging
 import asyncio
+import os
+import sys
 import httpx
 import yaml
 import os
 
-# Sensor 
+# Sensor
 from components.sensor.airguard_sensor import AirguardSensor
 from components.sensor import SensorEntityDescription, SensorDeviceClass
 from components.drivers.hardware import SensorDriver
@@ -78,7 +80,7 @@ async def main():
         sensor_config_data = yaml.safe_load(f)
     # Create mapping: sensor_key → sensor_config
     sensor_params_map = {s["key"]: s for s in sensor_config_data.get("sensors", [])}
-    
+
     # Load configuration from YAML file ,later catalog from outside
     catalog_url = os.getenv("CATALOG_BASE_URL", "http://catalog_service:8001")
     all_devices = await get_devices_from_catalog(catalog_url)
@@ -86,20 +88,20 @@ async def main():
     # Separate sensors and actuators based on device_class
     sensors_config = [d for d in all_devices if d["category"] == "sensor"]
     actuators_config = [d for d in all_devices if d["category"] == "actuator"]
-    
+
     # Merge sensor-specific parameters into sensor config from catalog
     for sensor_cfg in sensors_config:
         sensor_key = sensor_cfg["key"]
         if sensor_key in sensor_params_map:
             sensor_cfg.update(sensor_params_map[sensor_key])
-    
-    # Initialize the event bus only once 
+
+    # Initialize the event bus only once
     bus = EventBus()
 
     # Boot the MQTT Gateway
     mqtt_gateway = MQTTGateway(bus)
     asyncio.create_task(mqtt_gateway.start())
-    
+
     # test , listen to all state change events and print them out
     # bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
     
@@ -123,4 +125,6 @@ async def main():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())

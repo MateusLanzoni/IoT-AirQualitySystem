@@ -31,6 +31,10 @@ The adaptor API exposes historical telemetry from ThingSpeak:
 - `GET /health`
 - `GET /api/v1/history?roomid=room1&starttime=...&endtime=...`
 
+The dashboard also exposes explicit ThingSpeak room discovery:
+
+- `GET /api/thingspeak-rooms`
+
 This branch treats the API as the key integration point for reading historical room data.
 
 ## API Overview
@@ -136,8 +140,9 @@ components/adaptor/config.yaml
 
 Important rules:
 
-- `field1` is used for `room_id`
-- `field2` to `field7` map to telemetry or actuator topics
+- `roomid` selects the channel by matching topics that contain `/{roomid}/`
+- history response keeps raw ThingSpeak fields (`created_at`, `field1`, `field2`, ...)
+- `field2` to `field7` usually map to telemetry or actuator topics
 - topic strings must match exactly
 - unsupported topics are dropped by egress
 

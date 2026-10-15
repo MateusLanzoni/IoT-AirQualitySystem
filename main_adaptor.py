@@ -9,6 +9,7 @@ from components.adaptor.api import AdaptorAPI
 from components.adaptor.egress_to_tspeak import start_egress
 from components.adaptor.ingress_client import start_ingress
 from components.registry.registry_client import CatalogRegistry
+from env_loader import expand_env_values, load_env_file
 
 logging.basicConfig(
     level=logging.DEBUG,

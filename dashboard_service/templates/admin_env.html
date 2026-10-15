@@ -1,0 +1,159 @@
+{% extends "_base.html" %}
+{% import "_macros.html" as m %}
+{% set active_page = 'settings' %}
+
+{% block title %}AirGuard · Settings{% endblock %}
+
+{% block styles %}
+    .group + .group { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .group h3 { margin-bottom: 12px; }
+    .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+    .label-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .label-row label { margin-bottom: 6px; }
+    .label-row .badge { margin-bottom: 6px; font-size: 11px; padding: 1px 8px; }
+    .save-bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 22px; padding: 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+    .save-bar > div { flex: 1 1 260px; }
+    #status { flex-basis: 100%; margin: 0; font-size: 14px; }
+    #status.ok { color: var(--good); }
+    #status.bad { color: var(--bad); }
+    .create-user { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; margin-bottom: 16px; }
+    .row-actions { display: inline-flex; gap: 6px; justify-content: flex-end; }
+    td:last-child, th:last-child { text-align: right; }
+    @media (max-width: 720px) {
+      .field-grid, .create-user { grid-template-columns: minmax(0, 1fr); }
+    }
+{% endblock %}
+
+{% block content %}
+  {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+  {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+  <section class="page-head">
+    <div>
+      <span class="eyebrow">Administration</span>
+      <h1>Settings &amp; users</h1>
+      <p>Values are saved to <code>{{ dotenv_path }}</code>. Services read them at startup, so restart the affected containers after saving. Automation rules live on the <a href="/admin/management#policies">Management</a> page.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Environment</h2>
+      <span class="muted small">Leave a field blank to keep its current value.</span>
+    </div>
+
+    {% for group, fields in admin_groups.items() %}
+    <div class="group">
+      <h3>{{ group }}</h3>
+      <div class="field-grid">
+        {% for field in fields %}
+        <div>
+          <div class="label-row">
+            <label for="{{ field.key }}">{{ field.label }}</label>
+            {% if field.kind == 'password' %}<span class="badge {{ 'good' if field.is_set else '' }}">{{ 'Set' if field.is_set else 'Not set' }}</span>{% endif %}
+          </div>
+          <input
+            id="{{ field.key }}"
+            data-env-key="{{ field.key }}"
+            type="{{ 'password' if field.kind == 'password' else 'text' }}"
+            value="{{ field.value }}"
+            placeholder="{% if field.kind == 'password' %}{{ 'Type a new value to replace it' if field.is_set else 'Not set' }}{% else %}Not set — service default{% endif %}"
+            autocomplete="{{ 'new-password' if field.kind == 'password' else 'off' }}"
+          >
+          <div class="hint mono">{{ field.key }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="save-bar">
+      <div>
+        <label for="admin-password">Confirm with current admin password</label>
+        <input id="admin-password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn primary" id="save-env" type="button">Save changes</button>
+      <p id="status" role="status"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <div><h2>Users</h2><p class="muted small">Users you create are linked to you. Disabled users stay in the database but can't sign in.</p></div>
+    </div>
+
+    <form class="create-user" method="post" action="/admin/users/create">
+      <div><label for="new-username">New username</label><input id="new-username" name="username" type="text" autocomplete="off" required></div>
+      <div><label for="new-password">Password</label><input id="new-password" name="password" type="password" autocomplete="new-password" required></div>
+      <button class="btn primary" type="submit">Create user</button>
+    </form>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>User</th><th>Status</th><th>Created</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          {% for user in managed_users %}
+          <tr>
+            <td><strong>{{ user.username }}</strong><div class="hint">Owner: {{ user.created_by_admin_username or current_user.username }}</div></td>
+            <td><span class="badge dot {{ 'good' if user.is_active else '' }}">{{ 'Active' if user.is_active else 'Disabled' }}</span></td>
+            <td class="muted small">{{ m.when(user.created_at) }}</td>
+            <td>
+              <span class="row-actions">
+                <form method="post" action="/admin/users/{{ user.id }}/toggle">
+                  <input type="hidden" name="enabled" value="{{ 'false' if user.is_active else 'true' }}">
+                  <button class="btn sm" type="submit">{{ 'Disable' if user.is_active else 'Enable' }}</button>
+                </form>
+                <form method="post" action="/admin/users/{{ user.id }}/delete">
+                  <button class="btn sm danger" type="submit" data-confirm="Delete user {{ user.username }}? This can't be undone.">Delete</button>
+                </form>
+              </span>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="muted">No users yet — create one above.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.querySelectorAll('[data-confirm]').forEach((button) => {
+      button.addEventListener('click', (event) => {
+        if (!window.confirm(button.dataset.confirm)) event.preventDefault();
+      });
+    });
+
+    const status = document.getElementById('status');
+    const setStatus = (text, kind) => { status.textContent = text; status.className = kind || ''; };
+
+    document.getElementById('save-env').addEventListener('click', async () => {
+      const passwordInput = document.getElementById('admin-password');
+      if (!passwordInput.value) {
+        setStatus('Enter the current admin password to save.', 'bad');
+        passwordInput.focus();
+        return;
+      }
+      const values = {};
+      document.querySelectorAll('[data-env-key]').forEach((input) => { values[input.dataset.envKey] = input.value; });
+      try {
+        const response = await fetch('/admin/env', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: passwordInput.value, values }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Unable to save changes.');
+        passwordInput.value = '';
+        document.querySelectorAll('input[type="password"][data-env-key]').forEach((input) => { input.value = ''; });
+        setStatus(data.updated.length
+          ? `Saved ${data.updated.length} value${data.updated.length === 1 ? '' : 's'}. Restart the affected services to apply them.`
+          : 'Nothing changed.', 'ok');
+      } catch (error) {
+        setStatus(error.message, 'bad');
+      }
+    });
+  </script>
+{% endblock %}

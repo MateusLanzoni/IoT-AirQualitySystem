@@ -1,0 +1,347 @@
+{% extends "_base.html" %}
+{% import "_macros.html" as m %}
+{% set active_page = 'dashboard' %}
+
+{% block title %}AirGuard · {{ room_id }}{% endblock %}
+
+{% block styles %}
+    .head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+    /* Room title doubles as the room switcher */
+    .room-switch { position: relative; display: block; width: fit-content; }
+    .room-switch > summary {
+      display: inline-flex; align-items: center; gap: 12px;
+      margin-left: -10px; padding: 2px 12px 4px 10px; border-radius: 14px;
+      border: 1px solid transparent; transition: background .15s, border-color .15s;
+    }
+    .room-switch > summary:hover, .room-switch[open] > summary { background: var(--surface-2); border-color: var(--line-strong); }
+    .room-switch .chev {
+      width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+      background: var(--accent-soft); color: var(--accent); flex: none;
+    }
+    .room-switch .chev::before {
+      content: ""; width: 8px; height: 8px; margin-top: -4px;
+      border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor;
+      transform: rotate(45deg); transition: transform .15s;
+    }
+    .room-switch[open] .chev::before { transform: rotate(-135deg); margin-top: 4px; }
+    .room-menu {
+      position: absolute; z-index: 20; top: calc(100% + 8px); left: -10px;
+      min-width: 260px; max-height: 360px; overflow-y: auto; padding: 6px;
+      background: var(--surface-solid); border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: var(--shadow);
+    }
+    .room-menu-title { padding: 8px 10px 6px; color: var(--faint); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .room-menu a { display: flex; flex-direction: column; gap: 1px; padding: 9px 10px 9px 30px; border-radius: 10px; text-decoration: none; position: relative; }
+    .room-menu a:hover, .room-menu a:focus-visible { background: var(--surface-2); outline: none; }
+    .room-menu a[aria-current="true"] { background: var(--accent-soft); }
+    .room-menu a[aria-current="true"]::before { content: "✓"; position: absolute; left: 11px; top: 9px; color: var(--accent); font-weight: 800; }
+    .room-menu-name { font-weight: 700; font-family: var(--mono); }
+    .room-menu-meta { color: var(--muted); font-size: 12px; }
+    .room-menu a.room-menu-manage { margin-top: 4px; padding-left: 10px; border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; color: var(--accent); font-weight: 700; font-size: 13px; }
+    .services { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .head-meta { display: flex; gap: 8px 16px; flex-wrap: wrap; color: var(--muted); font-size: 14px; margin-top: 8px; }
+    .head-meta strong { color: var(--text); font-weight: 700; }
+
+    /* Metric cards */
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .metric { position: relative; overflow: hidden; padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 6px; --tone: var(--faint); }
+    .metric::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--tone); }
+    .metric.good { --tone: var(--good); }
+    .metric.warn { --tone: var(--warn); }
+    .metric.bad { --tone: var(--bad); }
+    .metric-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .metric-label { font-weight: 700; color: var(--muted); font-size: 14px; }
+    .metric-value { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; }
+    .metric-value .num { font-size: clamp(2.1rem, 3.4vw, 2.8rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .metric-value .unit { color: var(--muted); font-size: 1rem; font-weight: 700; }
+    .metric-trend { font-size: 13px; color: var(--muted); min-height: 18px; }
+    .spark-box { position: relative; height: 48px; margin: 6px 0 4px; color: var(--tone); }
+    .spark-box svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    .spark-box .area { fill: currentColor; opacity: 0.12; }
+    .spark-box .line { fill: none; stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+    .spark-box .forecast { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+    .spark-box .dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px var(--surface-solid); }
+    .spark-box .dot.ghost { background: var(--surface-solid); border: 2px solid var(--muted); box-shadow: none; }
+    .spark-empty { height: 48px; margin: 6px 0 4px; display: grid; place-items: center; color: var(--faint); font-size: 12px; border: 1px dashed var(--line); border-radius: 10px; }
+    .metric-foot { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: auto; }
+    .metric-foot strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+    .empty-state { text-align: center; padding: 48px 20px; }
+    .empty-state p { max-width: 520px; margin: 10px auto 18px; }
+    .forecast-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 18px; }
+    .forecast-strip p { margin: 0; flex: 1 1 320px; }
+
+    /* Lower grid */
+    .split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+    .device-name { font-weight: 700; }
+    .reading { font-variant-numeric: tabular-nums; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+    .reading .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+    .reading .pip.good { background: var(--good); }
+    .reading .pip.warn { background: var(--warn); }
+    .reading .pip.bad { background: var(--bad); }
+    .kind { color: var(--faint); font-size: 12px; }
+
+    .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .rule { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+    .rule.active { border-color: color-mix(in srgb, var(--info) 45%, transparent); }
+    .rule-line { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .rule-text { font-weight: 700; }
+    .rule-text .arrow { color: var(--faint); padding: 0 4px; }
+    .rule-meta { margin-top: 4px; color: var(--faint); font-size: 12px; }
+
+    /* Data sources */
+    details.card > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    details.card > summary h2::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--muted); transition: transform .15s; }
+    details.card[open] > summary h2::before { transform: rotate(90deg); }
+    details.card[open] > summary { margin-bottom: 16px; }
+    .channel + .channel { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .channel-head { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .field-tile { min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+    .fields.topics { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+    .field-tile .topic { overflow-wrap: anywhere; }
+    .field-tile .v { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .field-tile .v small { color: var(--muted); font-size: 12px; font-weight: 700; }
+
+    @media (max-width: 1080px) {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .split { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .metrics { grid-template-columns: minmax(0, 1fr); }
+      .head-side { align-items: flex-start; }
+      .services { justify-content: flex-start; }
+    }
+{% endblock %}
+
+{% block content %}
+  {% if page_message %}<div class="notice">{{ page_message }}</div>{% endif %}
+
+  <section class="page-head">
+    <div>
+      <span class="eyebrow">Live air quality</span>
+      {% if rooms %}
+      <details class="room-switch">
+        <summary aria-label="Change room, current room {{ room_id }}">
+          <h1>{{ room_id }}</h1>
+          <span class="chev" aria-hidden="true"></span>
+        </summary>
+        <div class="room-menu" role="menu">
+          <div class="room-menu-title">Switch room</div>
+          {% for item in rooms %}
+          <a role="menuitem" href="/dashboard?room_id={{ item.room_id|urlencode }}" {% if item.room_id == room_id %}aria-current="true"{% endif %}>
+            <span class="room-menu-name">{{ item.room_id }}</span>
+            <span class="room-menu-meta">{{ (item.energy_mode or 'NORMAL')|replace('_', ' ')|title }} · {{ (item.device_ids or [])|length }} device{{ '' if (item.device_ids or [])|length == 1 else 's' }}</span>
+          </a>
+          {% endfor %}
+          {% if is_admin %}<a class="room-menu-manage" href="/admin/management#rooms">Manage rooms</a>{% endif %}
+        </div>
+      </details>
+      {% else %}
+      <h1>Overview</h1>
+      {% endif %}
+      <div class="head-meta" {% if not rooms %}hidden{% endif %}>
+        <span>Last reading <strong>{{ m.when(updated_at) }}</strong></span>
+        {% if room.get('energy_mode') %}<span>Energy mode <strong>{{ room.energy_mode|replace('_', ' ')|title }}</strong></span>{% endif %}
+        {% if room.get('schedule') %}<span>Schedule <strong>{{ room.schedule.start }}–{{ room.schedule.end }}</strong></span>{% endif %}
+      </div>
+    </div>
+    <div class="head-side">
+      <div class="services" aria-label="Service health">
+        {% for key, item in status_cards.items() %}
+        <span class="badge dot {{ 'good' if item.status == 'online' else 'bad' }}" title="{{ item.label }} service is {{ item.status }}">{{ item.label }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  {% if not rooms %}
+  <section class="card empty-state">
+    <h2>No rooms yet</h2>
+    <p class="muted">There's nothing to show until a room exists in the catalog.{% if is_admin %} Create one on the Management page, then assign its sensors and actuators.{% else %} Ask an admin to add one.{% endif %}</p>
+    {% if is_admin %}<a class="btn primary" href="/admin/management#rooms">Add a room</a>{% endif %}
+  </section>
+  {% else %}
+
+  {% if not room_found %}
+  <div class="notice warn">Room <strong>{{ room_id }}</strong> doesn't exist in the catalog, so there's no data to show. Pick another room above{% if is_admin %} or add it on the <a href="/admin/management#rooms">Management</a> page{% endif %}.</div>
+  {% elif not has_readings %}
+  <div class="notice warn">No readings for <strong>{{ room_id }}</strong> yet. Readings appear once a sensor in this room publishes data and a ThingSpeak channel for it is configured in the adaptor.</div>
+  {% endif %}
+
+  <section class="metrics">
+    {% for card in metric_cards %}
+    <article class="card metric {{ card.status or '' }}">
+      <div class="metric-top">
+        <span class="metric-label">{{ card.label }}</span>
+        <span class="badge dot {{ card.status or '' }}">{{ card.status_label }}</span>
+      </div>
+      <div class="metric-value"><span class="num">{{ card.value }}</span>{% if card.has_value %}<span class="unit">{{ card.unit }}</span>{% endif %}</div>
+      <div class="metric-trend">
+        {% if card.trend %}
+          {% if card.trend.direction == 'up' %}▲{% elif card.trend.direction == 'down' %}▼{% else %}■{% endif %}
+          {{ card.trend.delta }} {{ card.unit }} over {{ card.trend.span }}
+        {% endif %}
+      </div>
+      {% if card.spark %}
+      <div class="spark-box" aria-hidden="true">
+        <svg viewBox="0 0 {{ card.spark.width }} {{ card.spark.height }}" preserveAspectRatio="none">
+          <path class="area" d="{{ card.spark.area }}"></path>
+          <path class="line" d="{{ card.spark.line }}"></path>
+          {% if card.spark.forecast %}<polyline class="forecast" points="{{ card.spark.forecast }}"></polyline>{% endif %}
+        </svg>
+        <span class="dot" style="left: {{ (card.spark.end_x|float / card.spark.width|float * 100)|round(2) }}%; top: {{ (card.spark.end_y|float / card.spark.height|float * 100)|round(2) }}%;"></span>
+        {% if card.spark.forecast %}<span class="dot ghost" style="left: {{ (card.spark.forecast_x|float / card.spark.width|float * 100)|round(2) }}%; top: {{ (card.spark.forecast_y|float / card.spark.height|float * 100)|round(2) }}%;"></span>{% endif %}
+      </div>
+      {% else %}
+      <div class="spark-empty">{{ 'Not enough history for a trend' if card.has_value else 'No data' }}</div>
+      {% endif %}
+      <div class="metric-foot">
+        {% if card.forecast %}
+        <span>In {{ card.horizon }} min</span><strong>{{ card.forecast }} {{ card.unit }}</strong>
+        {% else %}
+        <span>No forecast yet</span>
+        {% endif %}
+      </div>
+      <div class="hint">{{ card.target }}</div>
+    </article>
+    {% endfor %}
+  </section>
+
+  {% if prediction.get('summary') %}
+  <section class="card forecast-strip">
+    <span class="badge dot {{ 'good' if prediction.get('risk') in ('normal', 'low') else 'warn' if prediction.get('risk') in ('moderate', 'medium') else 'bad' }}">Forecast: {{ prediction.get('risk', 'unknown')|title }}</span>
+    <p>{{ prediction.summary }}</p>
+    <span class="muted tiny">Dashed line on each chart = predicted value</span>
+  </section>
+  {% endif %}
+
+  <section class="split">
+    <div class="card">
+      <div class="card-head">
+        <div><h2>Devices</h2><p class="muted small">Sensors show their latest reading; actuators show the last command from the decision service.</p></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Device</th><th>Type</th><th>Reading / state</th><th>Updated</th></tr></thead>
+          <tbody>
+            {% for row in device_rows %}
+            <tr>
+              <td><span class="device-name mono">{{ row.key }}</span><div class="kind">{{ row.kind }}</div></td>
+              <td>{{ row.type }}</td>
+              <td>
+                {% if row.kind == 'sensor' %}
+                <span class="reading"><span class="pip {{ row.status or '' }}"></span>{{ row.reading }}</span>
+                {% else %}
+                <span class="badge {{ row.status or '' }}{% if row.status == 'bad' %} dot{% endif %}">{{ row.reading }}</span>
+                {% endif %}
+              </td>
+              <td class="muted small">{{ m.when(row.updated_at) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">No devices are assigned to this room.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div><h2>Automation rules</h2><p class="muted small">Evaluated by the decision service, highest priority first.</p></div>
+        {% if is_admin %}<a class="btn sm" href="/admin/management#policies">Edit rules</a>{% endif %}
+      </div>
+      <ul class="rules">
+        {% for rule in policy_rows %}
+        <li class="rule {{ 'active' if rule.active }}">
+          <div class="rule-line">
+            <span class="rule-text">If {{ rule.metric }} {{ rule.operator }} {{ rule.value }}<span class="arrow">→</span><span class="mono">{{ rule.target_device }}</span> {{ rule.target_state }}</span>
+            {% if rule.active %}<span class="badge active dot">Triggered</span>{% endif %}
+          </div>
+          <div class="rule-meta">Priority {{ rule.priority }} · <span class="mono">{{ rule.policy_id }}</span></div>
+        </li>
+        {% else %}
+        <li class="muted small">No rules defined for this room.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  {% endif %}{# rooms #}
+
+  {% if is_admin %}
+  <section class="card">
+    <div class="card-head">
+      <div><h2>Decision state store</h2><p class="muted small">Last state the decision service recorded for each actuator, across all rooms.</p></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Room</th><th>Device</th><th>State</th><th>Last action</th></tr></thead>
+        <tbody>
+          {% for room_name, devices in decision_states.items() %}
+            {% for device_name, entry in devices.items() %}
+            {% set state = (entry.state or '')|upper %}
+            <tr>
+              <td class="mono">{{ room_name }}</td>
+              <td class="mono">{{ device_name }}</td>
+              <td><span class="badge {{ 'bad dot' if state == 'ERROR' else 'active' if state in ('ON', 'OPEN') else '' }}">{{ state or '—' }}</span></td>
+              <td class="muted small">{{ m.when(entry.last_action_time) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+          <tr><td colspan="4" class="muted">No actuator decisions have been stored yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <details class="card">
+    <summary>
+      <h2>Data sources</h2>
+      <span class="muted small">{{ thingspeak_rooms|length }} ThingSpeak channel{{ '' if thingspeak_rooms|length == 1 else 's' }}</span>
+    </summary>
+    {% for channel in thingspeak_rooms %}
+    <div class="channel">
+      <div class="channel-head">
+        <h3>Channel {{ channel.channel_id }}</h3>
+        <span class="badge {{ 'active' if channel.kind == 'telemetry' else '' }}">{{ channel.kind|title }}</span>
+        <span class="muted small">Room {{ channel.room_id }}{% if channel.kind == 'telemetry' %} · {{ channel.history_points }} points in the last 24 h{% endif %}</span>
+      </div>
+      <div class="fields{{ ' topics' if channel.kind != 'telemetry' }}">
+        {% for field in channel.labelled_fields %}
+        <div class="field-tile">
+          <div class="label">{{ field.label }}</div>
+          {% if channel.kind == 'telemetry' %}
+          <div class="v">{{ field.value }}{% if field.unit and field.value != '-' %} <small>{{ field.unit }}</small>{% endif %}</div>
+          <div class="hint">{% if field.device %}<span class="mono">{{ field.device }}</span> · {% endif %}{{ m.when(field.timestamp) }}</div>
+          {% else %}
+          <div class="hint mono topic">{{ field.topic }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <p class="muted">No ThingSpeak channels found. Mount the adaptor config or set <code>ADAPTOR_CONFIG_PATH</code>.</p>
+    {% endfor %}
+  </details>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    (() => {
+      const menu = document.querySelector('.room-switch');
+      if (!menu) return;
+      document.addEventListener('click', (event) => {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && menu.open) {
+          menu.open = false;
+          menu.querySelector('summary').focus();
+        }
+      });
+    })();
+  </script>
+{% endblock %}

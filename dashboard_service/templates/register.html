@@ -1,0 +1,41 @@
+{% extends "_base.html" %}
+
+{% block title %}AirGuard · Create account{% endblock %}
+
+{% block styles %}
+    .panel h1 { margin: 18px 0 6px; }
+    .panel > p { margin: 0 0 20px; color: var(--muted); }
+    .stack { display: grid; gap: 14px; }
+    .panel-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+{% endblock %}
+
+{% block body %}
+  <div class="auth">
+    <button class="btn ghost sm theme-corner" type="button" data-theme-toggle>White mode</button>
+    <main class="card panel">
+      <a class="brand" href="/login"><span class="brand-mark" aria-hidden="true">AG</span>AirGuard</a>
+      <h1>Create account</h1>
+      <p>New accounts are linked to an admin, who can disable or remove them later.</p>
+
+      {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+      {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+      <form method="post" action="/register">
+        <div class="stack">
+          <div><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" autofocus required></div>
+          <div><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" required></div>
+          <div>
+            <label for="admin_username">Admin owner</label>
+            <select id="admin_username" name="admin_username" required>
+              {% for admin in admins %}<option value="{{ admin.username }}">{{ admin.username }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="panel-actions">
+          <button class="btn primary" type="submit">Create account</button>
+          <a class="small muted" href="/login">Back to sign in</a>
+        </div>
+      </form>
+    </main>
+  </div>
+{% endblock %}

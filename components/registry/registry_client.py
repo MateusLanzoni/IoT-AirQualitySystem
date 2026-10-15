@@ -1,5 +1,6 @@
 import httpx
 import logging
+import os
 import socket
 import os
 
@@ -28,30 +29,34 @@ class CatalogRegistry:
     async def register(self):
         """Send POST request to Catalog Service."""
         url = f"{CATALOG_BASE_URL}/services/register"
-        
+
         # Payload matches teammate's scheduler logic exactly
         payload = {
             "service_id": self.service_id,
             "service_name": "ThingSpeak_Adaptor",
-            "endpoint": f"http://{self.ip}:{self.port}",
+            "endpoint": self.service_url,
             "health_endpoint": "/health",
             "type": "adaptor"
         }
-        
+
         async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, timeout=5.0)
-                if response.status_code in (200, 201):
-                    logger.info("Registered to Catalog Service.")
-                else:
+            for attempt in range(1, 6):
+                try:
+                    response = await client.post(url, json=payload, timeout=5.0)
+                    if response.status_code in (200, 201):
+                        logger.info("Registered to Catalog Service.")
+                        return
                     logger.error(f"Catalog registration failed: {response.text}")
-            except Exception as e:
-                logger.error(f"Network error during registration: {e}")
+                except Exception as e:
+                    logger.warning("Catalog registration attempt %s/5 failed: %s", attempt, e)
+                if attempt < 5:
+                    await asyncio.sleep(2)
+            logger.error("Catalog registration failed after 5 attempts.")
 
     async def deregister(self):
         """Send DELETE request to Catalog Service."""
         url = f"{CATALOG_BASE_URL}/services/{self.service_id}"
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 await client.delete(url, timeout=3.0)
