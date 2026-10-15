@@ -22,6 +22,9 @@ class AirguardActuator(ActuatorEntity):
         # Check device_id
         if event.data.get("device_id") != self.entity_description.key:
             return
+        room_id = event.data.get("room_id")
+        if room_id and room_id != self.entity_description.room_id:
+            return
         action = event.data.get("action", "").lower()
         if action == "turn_on":
             await self.async_turn_on()
@@ -30,7 +33,10 @@ class AirguardActuator(ActuatorEntity):
 
     def _fire_state_changed(self):
         """internal method, fire state change event to bus after state is updated."""
+        device_type = self.device_class.value if self.device_class else "actuator"
         changed_data = {
+            "room_id": self.entity_description.room_id,
+            "device_type": device_type,
             "device_id": self.entity_description.key,
             "value": "ON" if self._attr_is_on else "OFF"
         }
@@ -57,12 +63,5 @@ class AirguardActuator(ActuatorEntity):
 
         if old_state != self._attr_is_on:
             self._fire_state_changed()  # Fire event if state has changed
-
-        # Payload format
-        event_data = {
-            "device_id": self.entity_description.key,
-            "value": "ON" if self._attr_is_on else "OFF"
-        }
-        self.bus.async_fire(EVENT_STATE_CHANGED, event_data)
         _LOGGER.info(f"{self.name} updated: {'ON' if self._attr_is_on else 'OFF'}")
     

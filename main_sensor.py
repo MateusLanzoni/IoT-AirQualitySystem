@@ -2,6 +2,7 @@ import logging
 import asyncio
 import httpx
 import yaml
+import os
 
 # Sensor 
 from components.sensor.airguard_sensor import AirguardSensor
@@ -26,6 +27,7 @@ def setup_sensors_from_catalog(config_list: list, bus: EventBus) -> list:
     for item in config_list:
         # Dynamically create descriptions based on config
         desc = SensorEntityDescription(
+            room_id= item["room_id"],
             key = item["key"],
             name = item["name"],
             device_class = SensorDeviceClass(item["device_class"]),
@@ -60,6 +62,7 @@ def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
             raise KeyError(f"Missing device class for actuator config: {item}")
 
         desc = ActuatorEntityDescription(
+            room_id= item["room_id"],
             key = item["key"],
             name=item["name"],
             device_class=ActuatorDeviceClass(device_class)
@@ -77,7 +80,7 @@ async def main():
     sensor_params_map = {s["key"]: s for s in sensor_config_data.get("sensors", [])}
     
     # Load configuration from YAML file ,later catalog from outside
-    catalog_url = "http://host.docker.internal:8001"  # URL of the catalog service
+    catalog_url = os.getenv("CATALOG_BASE_URL", "http://catalog_service:8001")
     all_devices = await get_devices_from_catalog(catalog_url)
 
     # Separate sensors and actuators based on device_class
@@ -98,7 +101,7 @@ async def main():
     asyncio.create_task(mqtt_gateway.start())
     
     # test , listen to all state change events and print them out
-    bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
+    # bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
     
     # Initialize sensors and actuators, and register them to the bus
     all_sensors = setup_sensors_from_catalog(sensors_config, bus)

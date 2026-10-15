@@ -1,68 +1,103 @@
 import asyncio
-import yaml
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-import uvicorn
 import logging
+import threading
 
-# Import API router
-from components.adaptor.api import router
+import cherrypy
+import yaml
 
-# Import background tasks and registry client
-from components.adaptor.ingress_client import start_ingress
+from components.adaptor.api import AdaptorAPI
 from components.adaptor.egress_to_tspeak import start_egress
+from components.adaptor.ingress_client import start_ingress
 from components.registry.registry_client import CatalogRegistry
 
 logging.basicConfig(
-    level=logging.DEBUG,  # Set to DEBUG for detailed logs during development
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
 
+
 def load_config() -> dict:
     """Load configuration from config.yaml."""
-    with open("config.yaml", "r") as f:
+    with open("components/adaptor/config.yaml", "r") as f:
         return yaml.safe_load(f)
 
-# Initialize service registry client
-registry = CatalogRegistry()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage the lifecycle of the Adaptor application."""
+class BackgroundTaskManager:
+    def __init__(self, config: dict):
+        self._config = config
+        self._loop = None
+        self._thread = None
+        self._tasks = []
+
+    def start(self):
+        self._loop = asyncio.new_event_loop()
+
+        def _run_loop():
+            asyncio.set_event_loop(self._loop)
+            self._loop.run_forever()
+
+        self._thread = threading.Thread(target=_run_loop, daemon=True)
+        self._thread.start()
+
+        self._tasks.append(
+            asyncio.run_coroutine_threadsafe(
+                start_ingress(
+                    broker_host="mosquitto",
+                    port=1883,
+                    topic_to_subscribe=["airguard/#", "sensor/#", "actuator/#"],
+                ),
+                self._loop,
+            )
+        )
+        self._tasks.append(asyncio.run_coroutine_threadsafe(start_egress(self._config), self._loop))
+
+    def stop(self):
+        for task in self._tasks:
+            task.cancel()
+
+        if self._loop is not None:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+
+        if self._thread is not None:
+            self._thread.join(timeout=5)
+
+
+def main():
     config = load_config()
+    registry = CatalogRegistry()
+    background_tasks = BackgroundTaskManager(config)
+
     logger.info("Loading configuration...")
-    # 1. Startup: Launch background asynchronous tasks
-    ingress_task = asyncio.create_task(
-        start_ingress(broker_host="mosquitto", port=1883, topic_to_subscribe=["airguard/#", "sensor/#", "actuator/#"])
-    )
-    egress_task = asyncio.create_task(start_egress(config))
-    
-    # 2. Startup: Register service to Catalog
-    await registry.register()
-    
-    # Yield control to FastAPI to handle incoming HTTP requests
-    yield 
-    
-    # 3. Shutdown: Deregister service gracefully
-    await registry.deregister()
-    
-    # 4. Shutdown: Cancel background tasks
-    ingress_task.cancel()
-    egress_task.cancel()
-    
-    # Wait for tasks to clean up and exit
+    background_tasks.start()
+
     try:
-        await asyncio.gather(ingress_task, egress_task, return_exceptions=True)
-    except asyncio.CancelledError:
-        pass
+        asyncio.run(registry.register())
+    except Exception as exc:
+        logger.error(f"Failed to register adaptor service: {exc}")
 
-# Initialize FastAPI app with lifespan management
-app = FastAPI(lifespan=lifespan)
+    root = AdaptorAPI()
 
-# Mount the Northbound API router
-app.include_router(router)
+    def on_stop():
+        try:
+            asyncio.run(registry.deregister())
+        except Exception as exc:
+            logger.error(f"Failed to deregister adaptor service: {exc}")
+        background_tasks.stop()
+
+    cherrypy.engine.subscribe("stop", on_stop)
+    cherrypy.config.update(
+        {
+            "server.socket_host": "0.0.0.0",
+            "server.socket_port": 8000,
+        }
+    )
+    cherrypy.tree.mount(root, "/")
+
+    logger.info("CherryPy adaptor service starting on 0.0.0.0:8000")
+    cherrypy.engine.start()
+    cherrypy.engine.block()
+
 
 if __name__ == "__main__":
-    # Start the ASGI server
-    uvicorn.run("main_adaptor:app", host="0.0.0.0", port=8000)
+    main()

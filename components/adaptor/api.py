@@ -1,62 +1,92 @@
 """
-REST API Interface for monitoring the Adaptor .
+CherryPy REST API Interface for monitoring the Adaptor.
 """
-import yaml
-from datetime import datetime
-from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, Query, HTTPException
+
+import asyncio
+import json
 import logging
+from datetime import datetime
+from typing import Any, Dict
+
+import cherrypy
+import yaml
 
 from components.adaptor.base import BaseTimeSeriesStorage
 from components.adaptor.thingspeak import ThingSpeakProvider
 
-router = APIRouter()
 logger = logging.getLogger(__name__)
+
 
 def load_config() -> Dict[str, Any]:
     with open("components/adaptor/config.yaml", "r") as f:
         return yaml.safe_load(f)
 
-# Global singleton initialization
+
 _config = load_config()
 _storage_provider = ThingSpeakProvider(_config)
 
+
 def get_storage() -> BaseTimeSeriesStorage:
-    """Dependency injection for storage provider. Currently hardcoded to ThingSpeakProvider.
-    """
+    """Return the configured storage provider."""
     return _storage_provider
 
-@router.get("/health")
-async def health_check():
-    """Liveness probe endpoint"""
-    return {"status": "ok", "service": "thingspeak_adaptor_api"}
 
-@router.get("/api/v1/history", response_model=List[Dict[str, Any]])
-async def get_history(
-    roomid: str = Query(...,description="Target room"),
-    starttime: datetime = Query(...,description="Start time, e.g., 2026-01-26T13:00:00Z)"),
-    endtime: datetime = Query(...,description="End time, e.g., 2026-01-26T14:00:00Z)"),
-    db: BaseTimeSeriesStorage = Depends(get_storage)
-):
-    """
-    Retrieves historical data for a given room and time range.
-    Rerurns a list of events containing 'created_at' and all dynamic fields. 
-    """
-    # Format datetime objects to thingspeak's expected string format
-    start_str = starttime.strftime("%Y-%m-%dT%H:%M:%SZ")
-    end_str = endtime.strftime("%Y-%m-%dT%H:%M:%SZ")
-    
-    # Log the query parameters for debugging
-    logger.info(f"Fetching history for room {roomid} from {start_str} to {end_str}")
+def _json_response(payload: Any, status: int = 200) -> str:
+    cherrypy.response.status = status
+    cherrypy.response.headers["Content-Type"] = "application/json"
+    return json.dumps(payload, ensure_ascii=False, default=str)
 
-    # Call the abstracted storage 
-    result = await db.get_history(
-        roomid = roomid,
-        starttime = start_str,
-        endtime = end_str
-    )
 
-    # Handle provider errors
-    if isinstance(result, dict) and "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+def _parse_datetime(value: str) -> datetime:
+    normalized = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(normalized)
+
+
+def _run_async(coro):
+    return asyncio.run(coro)
+
+
+class HistoryController:
+    def __init__(self, storage: BaseTimeSeriesStorage):
+        self._storage = storage
+
+    @cherrypy.expose
+    def history(self, roomid=None, starttime=None, endtime=None):
+        if not roomid or not starttime or not endtime:
+            return _json_response({"error": "roomid, starttime and endtime are required"}, 400)
+
+        try:
+            start_dt = _parse_datetime(starttime)
+            end_dt = _parse_datetime(endtime)
+        except ValueError:
+            return _json_response({"error": "Invalid datetime format"}, 400)
+
+        start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        logger.info(f"Fetching history for room {roomid} from {start_str} to {end_str}")
+
+        result = _run_async(self._storage.get_history(roomid=roomid, starttime=start_str, endtime=end_str))
+        if isinstance(result, dict) and "error" in result:
+            return _json_response({"error": result["error"]}, 400)
+        return _json_response(result)
+
+
+class ApiV1Controller:
+    def __init__(self, storage: BaseTimeSeriesStorage):
+        self.history = HistoryController(storage)
+
+
+class ApiController:
+    def __init__(self, storage: BaseTimeSeriesStorage):
+        self.v1 = ApiV1Controller(storage)
+
+
+class AdaptorAPI:
+    def __init__(self, storage: BaseTimeSeriesStorage | None = None):
+        self._storage = storage or get_storage()
+        self.api = ApiController(self._storage)
+
+    @cherrypy.expose
+    def health(self):
+        return _json_response({"status": "ok", "service": "thingspeak_adaptor_api"})

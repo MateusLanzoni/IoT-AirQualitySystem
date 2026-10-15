@@ -1,11 +1,12 @@
 import httpx
 import logging
 import socket
+import os
 
 logger = logging.getLogger(__name__)
 
-# Base URL for the Catalog Service. Use Docker compose service name 'catalog_service'
-CATALOG_BASE_URL = "http://host.docker.internal:8001"
+# Base URL for the Catalog Service.
+CATALOG_BASE_URL = os.getenv("CATALOG_BASE_URL", "http://catalog_service:8001")
 
 def get_local_ip():
     """Retrieve the container's routable IP address."""
@@ -22,9 +23,7 @@ class CatalogRegistry:
     def __init__(self):
         self.service_id = "thingspeak-adaptor"
         self.port = 8000
-        # self.ip = get_local_ip()
-        # abandon 172.18.0.4，cuz Catalog is on local test
-        self.ip = "127.0.0.1"
+        self.ip = os.getenv("SERVICE_IP", get_local_ip())
         
     async def register(self):
         """Send POST request to Catalog Service."""
