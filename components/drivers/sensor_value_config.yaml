@@ -13,7 +13,7 @@ sensors:
     fan_effect: -0.5         # Fan on: humidity decreases by 0.5% per second
     fan_min: 40.0            # Don't go below 40% humidity
 
-  - device_class: "aqi"
+  - device_class: "co2"
     base_val: 600.0
     noise: 15.0
     window_effect: -15.0     # Window on: CO2 decreases by 15 ppm per second
