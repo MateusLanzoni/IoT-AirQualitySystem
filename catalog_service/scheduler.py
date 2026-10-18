@@ -125,10 +125,10 @@ async def heartbeat_task(config: dict):
                 results = ts_cfg.get("results", 1)
                 api_key = ts_cfg.get("api_key")
                 url = url_template.format(channel_id=channel_id)
-                feeds = get_thingspeak_feeds(url, results, api_key)
+                feeds = await asyncio.to_thread(get_thingspeak_feeds, url, results, api_key)
                 ts_devices = handle_device_channel_feed(feeds, channel_config)
             except Exception as e:
-                traceback.print_exc()
+                # traceback.print_exc()
                 logger.warning(f"ThingSpeak fetch failed: {e}")
 
         for device_id, dev in list(store.devices.items()):
@@ -143,7 +143,7 @@ async def heartbeat_task(config: dict):
                     update = {"value": data["value"]}
                     store.heartbeat_device(device_id, update)
             except Exception as e:
-                traceback.print_exc()
+                # traceback.print_exc()
                 logger.warning(f"Heartbeat failed for {device_id}: {e}")
 
         # Auto-offline sweep
@@ -196,7 +196,7 @@ async def health_check_task(config: dict):
                     else:
                         svc["status"] = "degraded"
                 except Exception as e:
-                    logger.exception(
+                    logger.warning(
                         "Health check failed: svc_id=%s, url=%s, error=%s",
                         svc_id,
                         url,

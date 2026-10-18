@@ -9,7 +9,7 @@ from typing import Dict, Optional
 
 
 class Storage:
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, config: Optional[dict] = None):
         self.data_dir = data_dir
         # Indexed maps: id -> DO dict
         self.devices: Dict[str, dict] = {}
@@ -18,6 +18,15 @@ class Storage:
         self.conflicts: Dict[str, dict] = {}
         self.services: Dict[str, dict] = {}
 
+        self.config: dict = config or {}
+
+
+    def set_config(self, config: dict):
+        self.config = config
+
+    def get_config(self) -> dict:
+        return self.config
+    
     # ── Bootstrap ────────────────────────────────────────────────────────────
 
     def load_all(self):
@@ -106,14 +115,16 @@ class Storage:
             self.save_services()
 
 
+   
+
 # ── Module-level singleton ────────────────────────────────────────────────────
 
 _instance: Optional[Storage] = None
 
 
-def init(data_dir: str) -> Storage:
+def init(data_dir: str, config: Optional[dict] = None) -> Storage:
     global _instance
-    _instance = Storage(data_dir)
+    _instance = Storage(data_dir, config)
     _instance.load_all()
     return _instance
 
