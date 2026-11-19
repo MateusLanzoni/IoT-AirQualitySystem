@@ -35,6 +35,7 @@ class AirguardActuator(ActuatorEntity):
         """internal method, fire state change event to bus after state is updated."""
         device_type = self.device_class.value if self.device_class else "actuator"
         changed_data = {
+            "category": "actuator",
             "room_id": self.entity_description.room_id,
             "device_type": device_type,
             "device_id": self.entity_description.key,

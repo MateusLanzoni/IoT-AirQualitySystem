@@ -11,6 +11,7 @@ from components.mqtt.const import (
     EVENT_STATE_CHANGED,
     EVENT_COMMAND_RECEIVED,
     TOPIC_TELEMETRY,
+    TOPIC_STATE,
     TOPIC_COMMAND_ALL_ROOMS
 )
 from components.mqtt.schemas import TelemetryMessage, CommandMessage
@@ -68,6 +69,7 @@ class MQTTGateway:
                 return
 
             device_type = event.data.get("device_type", "sensor")
+            category = event.data.get("category")
 
             raw_payload = {
                 "device_id": event.data["device_id"],
@@ -78,15 +80,23 @@ class MQTTGateway:
             # Data validation using schema.py
             validated_msg = TelemetryMessage(**raw_payload)
 
-            topic = TOPIC_TELEMETRY.format(
-                room_id = room_id,
-                device_type = device_type,
-                device_id=validated_msg.device_id
-            )
+            # Route by category: actuator status confirmation should use state topic.
+            if category == "actuator":
+                topic = TOPIC_STATE.format(
+                    room_id=room_id,
+                    device_type=device_type,
+                    device_id=validated_msg.device_id
+                )
+            else:
+                topic = TOPIC_TELEMETRY.format(
+                    room_id=room_id,
+                    device_type=device_type,
+                    device_id=validated_msg.device_id
+                )
 
             # Fire and forget(don't wait)
             await self.client.publish(topic, payload=validated_msg.model_dump_json())
-            _LOGGER.info("Published telemetry: %s", topic)
+            _LOGGER.info("Published state/telemetry: %s", topic)
 
         except ValidationError as e:
             _LOGGER.error(f"Schema validation error: {e}")
