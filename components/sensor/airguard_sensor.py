@@ -31,6 +31,7 @@ class AirguardSensor(SensorEntity):
 
         # Payload format
         event_data = {
+            "category": "sensor",
             "room_id": self.entity_description.room_id,
             "device_type": device_type,
             "device_id": self.entity_description.key,

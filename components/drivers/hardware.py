@@ -70,14 +70,20 @@ class SensorDriver:
         data = event.data
         device_id = data.get("device_id", "")
         state = data.get("value")
+
+        if isinstance(state, str):
+            normalized = state.strip().lower()
+            state_bool = normalized in ("on", "true", "1")
+        else:
+            state_bool = bool(state)
         
         # Map device state to actuator flags
         if "ac" in device_id.lower():
-            self.ac_on = bool(state)
+            self.ac_on = state_bool
         elif "fan" in device_id.lower():
-            self.fan_on = bool(state)
+            self.fan_on = state_bool
         elif "window" in device_id.lower():
-            self.window_on = bool(state)
+            self.window_on = state_bool
     
     async def read_data(self) -> float:
         """Generate sensor reading with actuator effects and natural variation."""
