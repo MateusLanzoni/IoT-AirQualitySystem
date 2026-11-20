@@ -13,7 +13,7 @@ import requests
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("telegram_notifier")
 
-
+#To be corrected
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_ALERT_TOPIC = os.getenv("MQTT_ALERT_TOPIC", "alert/#")

@@ -5,7 +5,7 @@ airguard/room1/telemetry/sensor/sensor_001/
 """
 
 # Base namespace for the edge device
-TOPIC_PREFIX = "airguard/room1"
+TOPIC_PREFIX = "airguard/room1" #To be corrected
 
 # Topic templates for routing
 # Usage format: airguard/room1/telemetry/<device_type>/<device_id>
@@ -27,6 +27,6 @@ PAYLOAD_KEY_ACTION = "action"
 PAYLOAD_KEY_PARAMS = "params"
 
 # Internal Event Bus types
-EVENT_STATE_CHANGED = "state_changed"        # Used for Telemetry 
+EVENT_STATE_CHANGED = "state_changed"        # Used for Telemetry
 EVENT_COMMAND_RECEIVED = "command_received"  # Used for Actuation
-EVENT_AVAILABILITY_CHANGED = "availability"  # Used for LWT/Online 
+EVENT_AVAILABILITY_CHANGED = "availability"  # Used for LWT/Online
