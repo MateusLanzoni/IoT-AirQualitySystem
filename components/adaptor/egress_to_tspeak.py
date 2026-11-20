@@ -77,10 +77,22 @@ async def _process_and_send(client: httpx.AsyncClient, routing_table: Dict[str, 
     for event in raw_events:
         topic = event["topic"]
 
-        if topic not in routing_table:
+        room_id = _extract_room_id_from_topic(topic)
+        if not room_id:
+            continue
+
+        matched_entry = None
+        matched_template = None
+        for template, entry in routing_table.items():
+            if template.format(room_id=room_id) == topic:
+                matched_entry = entry
+                matched_template = template
+                break
+
+        if matched_entry is None:
             continue  # No mapping for this topic, skip it
 
-        ch_id, api_key, field_name = routing_table[topic]
+        ch_id, api_key, field_name = matched_entry
         timestamp = event["timestamp"]  # a ISO8601 string, e.g., "2026-01-26T13:00:00Z"
 
         # Initialize channel structure if not exists
@@ -94,8 +106,6 @@ async def _process_and_send(client: httpx.AsyncClient, routing_table: Dict[str, 
         if timestamp not in nested_dict[ch_id]["timestamps"]:
             nested_dict[ch_id]["timestamps"][timestamp] = {"_room_id": None}
 
-        # Save room_id once per timestamp bucket if the topic follows airguard/<room_id>/...
-        room_id = _extract_room_id_from_topic(topic)
         if room_id and nested_dict[ch_id]["timestamps"][timestamp]["_room_id"] is None:
             nested_dict[ch_id]["timestamps"][timestamp]["_room_id"] = room_id
         

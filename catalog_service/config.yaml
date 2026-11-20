@@ -1,8 +1,14 @@
 server:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 8001
 
 data_dir: "data"
+log_level: "WARNING"
+
+DEVICE_TYPES: {"WINDOW", "FAN", "AC", "pm25", "humidity", "temperature", "co2"}
+DEVICE_CATEGORIES: {"actuator", "sensor"}
+ENERGY_MODES: ["NORMAL", "ENERGY_SAVING"]
+STRATEGIES: {"prefer_higher_priority", "prefer_lower_energy", "prefer_comfort"}
 
 scheduler:
   heartbeat_interval: 10      # seconds - pull sensor/actuator state
@@ -33,7 +39,8 @@ thingspeak:
       field7:
         device_id: fan_1
         name: fan_1
-  api_key: "${THINGSPEAK_READ_API_KEY}"
+  # api_key: "${THINGSPEAK_READ_API_KEY}"
+  api_key: OBMYFNLPN32TL6ZD
   results: 1
 
 

@@ -4,11 +4,13 @@ import os
 import sys
 import httpx
 import yaml
+import os
 
 # Sensor
 from components.sensor.airguard_sensor import AirguardSensor
 from components.sensor import SensorEntityDescription, SensorDeviceClass
 from components.drivers.hardware import SensorDriver
+from components.drivers import sensor_value_config
 
 # Actuator
 from components.actuator.airguard_actuator import AirguardActuator
@@ -28,6 +30,7 @@ def setup_sensors_from_catalog(config_list: list, bus: EventBus) -> list:
     for item in config_list:
         # Dynamically create descriptions based on config
         desc = SensorEntityDescription(
+            room_id= item["room_id"],
             key = item["key"],
             name = item["name"],
             device_class = SensorDeviceClass(item["device_class"]),
@@ -46,27 +49,32 @@ def setup_sensors_from_catalog(config_list: list, bus: EventBus) -> list:
     return sensors
 
 # Read sensors config from catalog
-async def get_devices_from_catalog(url: str):
+async def get_devices_from_catalog(url: str, timeout: float = 10.0)-> list:
     """Fetch device configurations from the catalog service."""
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"{url}/devices")
-        data = response.json()
-        return data.get("data", [])
-
-# Test
-async def test_bus_monitor(event):
-    print(f"\n [Bus Monitor] Event Fired: {event.event_type} with data: {event.data}\n")
-
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{url}/devices")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("data", [])
+            _LOGGER.warning(f"Catalog returned status {response.status_code} or empty device list.")
+    except Exception as e:
+        _LOGGER.warning(f"Failed to connect to Catalog at {url}: {e}")
+        return []
 
 # Setup actuators from catalog
 def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
     actuators = []
     for item in config_list:
-        desc = ActuatorEntityDescription(
+        device_class = item.get("device_class") or item.get("type")
+        if not device_class:
+            raise KeyError(f"Missing device class for actuator config: {item}")
 
+        desc = ActuatorEntityDescription(
+            room_id= item["room_id"],
             key = item["key"],
             name=item["name"],
-            device_class=ActuatorDeviceClass(item["device_class"])
+            device_class=ActuatorDeviceClass(device_class)
         )
         driver = ActuatorDriver()
         actuators.append(AirguardActuator(description=desc, driver=driver, bus=bus))
@@ -75,24 +83,29 @@ def setup_actuators_from_catalog(config_list: list, bus: EventBus) -> list:
 
 async def main():
     # Load sensor-specific parameters from configuration file
-    with open("sensor_value_config.yaml", "r") as f:
+    config_path = os.path.join(
+        os.path.dirname(__file__), "components", "drivers", "sensor_value_config.yaml"
+    )
+    with open(config_path, "r", encoding="utf-8") as f:
         sensor_config_data = yaml.safe_load(f)
     # Create mapping: sensor_key → sensor_config
-    sensor_params_map = {s["key"]: s for s in sensor_config_data.get("sensors", [])}
+    sensor_params_map = {s["device_class"]: s for s in sensor_config_data.get("sensors", [])}
 
     # Load configuration from YAML file ,later catalog from outside
-    catalog_url = os.getenv("CATALOG_SERVICE_URL", "http://localhost:8001")
+    catalog_url = os.getenv("CATALOG_BASE_URL", "http://catalog_service:8001")
     all_devices = await get_devices_from_catalog(catalog_url)
-
+    if not all_devices:
+        _LOGGER.warning("Catalog unavailable or empty, falling back to local default devices.")
+        
     # Separate sensors and actuators based on device_class
     sensors_config = [d for d in all_devices if d["category"] == "sensor"]
     actuators_config = [d for d in all_devices if d["category"] == "actuator"]
 
     # Merge sensor-specific parameters into sensor config from catalog
-    for sensor_cfg in sensors_config:
-        sensor_key = sensor_cfg["key"]
-        if sensor_key in sensor_params_map:
-            sensor_cfg.update(sensor_params_map[sensor_key])
+    for sensor_conf in sensors_config:
+        sensor_type = sensor_conf["device_class"]
+        if sensor_type in sensor_params_map:
+            sensor_conf.update(sensor_params_map[sensor_type])
 
     # Initialize the event bus only once
     bus = EventBus()
@@ -102,21 +115,19 @@ async def main():
     asyncio.create_task(mqtt_gateway.start())
 
     # test , listen to all state change events and print them out
-    bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
-
+    # bus.async_listen(EVENT_STATE_CHANGED, test_bus_monitor)
+    
     # Initialize sensors and actuators, and register them to the bus
     all_sensors = setup_sensors_from_catalog(sensors_config, bus)
     all_actuators = setup_actuators_from_catalog(actuators_config, bus)
 
     _LOGGER.info(f"Initialized {len(all_sensors)} sensors with Event Bus")
     _LOGGER.info(f"Initialized {len(all_actuators)} actuators with Event Bus")
-    #print(f"Initialized {len(all_sensors)} sensors from config.")
 
     while True:
         # Trigger sensors to read hardware
         for sensor in all_sensors:
             await sensor.async_update()   # Update each sensor to fetch the latest value from the simulator
-            #print(f"{sensor.name}: {sensor.state} {sensor.native_unit_of_measurement}")
 
         # Trigger actuators to update
         for actuator in all_actuators:
